@@ -98,9 +98,19 @@
         <!-- Opções BORDADO -->
         <div id="opcoesBordado" class="hidden method-section">
             <label class="section-label">Configuração Bordado:</label>
-            <div class="form-group">
-                <label>Custo Unitário do Bordado (R$):</label>
-                <input type="number" id="precoBordado" value="0" step="0.10" placeholder="0.00">
+            <div class="row">
+                <div class="form-group">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.2rem;">Preço Unit. deste Bordado (R$)</label>
+                    <input type="number" id="inputPrecoBordado" value="" step="0.10" placeholder="0.00">
+                </div>
+                <div class="form-group">
+                    <label style="font-size: 0.85rem; margin-bottom: 0.2rem;">Descrição (Opcional)</label>
+                    <input type="text" id="inputDescBordado" placeholder="Ex: Peito, Manga...">
+                </div>
+                <button id="btnAdicionarBordado" class="btn-add-estampa">Adicionar</button>
+            </div>
+            <div id="bordadosList" class="estampas-list">
+                <p class="empty-state-small">Nenhum bordado adicionado.</p>
             </div>
         </div>
 

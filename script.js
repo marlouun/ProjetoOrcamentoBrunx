@@ -117,7 +117,7 @@ const getEstadoInicialItem = () => ({
     temBordado: false,
     silkEstampas: [],
     dtfEstampas: [],
-    precoBordado: 0,
+    bordados: [], // Lista de objetos { id, preco, descricao }
     imagens: [],
     manual: false,
     valorAdicional: 0,
@@ -159,7 +159,10 @@ const el = {
     btnAdicionarEstampaDtf: document.getElementById('btnAdicionarEstampaDtf'),
     dtfEstampasList: document.getElementById('dtfEstampasList'),
 
-    precoBordado: document.getElementById('precoBordado'),
+    inputPrecoBordado: document.getElementById('inputPrecoBordado'),
+    inputDescBordado: document.getElementById('inputDescBordado'),
+    btnAdicionarBordado: document.getElementById('btnAdicionarBordado'),
+    bordadosList: document.getElementById('bordadosList'),
 
     dropZone: document.getElementById('dropZone'),
     uploadImagens: document.getElementById('uploadImagens'),
@@ -220,7 +223,7 @@ function calcularPrecoItem(item) {
 
     // Custo Bordado
     if (item.temBordado) {
-        custoEstampa += parseFloat(item.precoBordado) || 0;
+        custoEstampa += item.bordados.reduce((total, bordado) => total + bordado.preco, 0);
     }
 
     const markup = parseFloat(item.valorAdicional) || 0;
@@ -235,19 +238,27 @@ function atualizarDisplayPrecoConfig() {
 }
 
 function renderizarEstampas(tipo) {
-    const listaEl = el[`${tipo}EstampasList`];
-    const estampas = estado.configItemAtual[`${tipo}Estampas`];
+    const listaEl = tipo === 'bordado' ? el.bordadosList : el[`${tipo}EstampasList`];
+    const key = tipo === 'bordado' ? 'bordados' : `${tipo}Estampas`;
+    const itens = estado.configItemAtual[key];
+    
     listaEl.innerHTML = '';
-    if (estampas.length === 0) {
-        listaEl.innerHTML = `<p class="empty-state-small">Nenhuma estampa ${tipo.toUpperCase()} adicionada.</p>`;
+    
+    if (itens.length === 0) {
+        const msg = tipo === 'bordado' ? 'Nenhum bordado adicionado.' : `Nenhuma estampa ${tipo.toUpperCase()} adicionada.`;
+        listaEl.innerHTML = `<p class="empty-state-small">${msg}</p>`;
     } else {
-        estampas.forEach(estampa => {
-            const desc = tipo === 'silk' ? `${estampa.cores} Cores` : `Tamanho ${estampa.tamanho}`;
+        itens.forEach(item => {
+            let desc = '';
+            if (tipo === 'silk') desc = `${item.cores} Cores`;
+            else if (tipo === 'dtf') desc = `Tamanho ${item.tamanho}`;
+            else if (tipo === 'bordado') desc = `${item.descricao || 'Sem descrição'} - ${formatarMoeda(item.preco)}`;
+
             const div = document.createElement('div');
             div.className = 'estampa-adicionada';
             div.innerHTML = `
-                <span class="info">1x Estampa ${desc}</span>
-                <button class="remover-item" data-id="${estampa.id}" data-tipo="${tipo}">✖️</button>
+                <span class="info">${tipo === 'bordado' ? '' : '1x Estampa '}${desc}</span>
+                <button class="remover-item" data-id="${item.id}" data-tipo="${tipo}">✖️</button>
             `;
             listaEl.appendChild(div);
         });
@@ -320,7 +331,6 @@ function preencherFormularioComItem(item) {
     el.opcoesBordado.classList.toggle('hidden', !item.temBordado);
 
     // Valores
-    el.precoBordado.value = item.precoBordado;
     el.valorAdicional.value = item.valorAdicional;
     el.precoManual.value = item.precoManual;
     el.modoManualToggle.checked = item.manual;
@@ -333,6 +343,7 @@ function preencherFormularioComItem(item) {
 
     renderizarEstampas('silk');
     renderizarEstampas('dtf');
+    renderizarEstampas('bordado');
     renderizarImagens();
     atualizarDisplayPrecoConfig();
 }
@@ -389,7 +400,9 @@ function resetarConfigItem() {
     el.opcoesDtf.classList.add('hidden');
     el.opcoesBordado.classList.add('hidden');
 
-    el.precoBordado.value = 0;
+    el.inputPrecoBordado.value = '';
+    el.inputDescBordado.value = '';
+    
     el.valorAdicional.value = 0;
     el.precoManual.value = 0;
     el.modoManualToggle.checked = false;
@@ -400,6 +413,7 @@ function resetarConfigItem() {
     el.uploadImagens.value = '';
     renderizarEstampas('dtf');
     renderizarEstampas('silk');
+    renderizarEstampas('bordado');
     atualizarDisplayPrecoConfig();
 }
 
@@ -424,7 +438,7 @@ function setupEventListeners() {
                 estado.itensOrcamento = estado.itensOrcamento.filter(item => item.id !== id);
                 renderizarItensOrcamento();
             } else {
-                const key = `${tipo}Estampas`;
+                const key = tipo === 'bordado' ? 'bordados' : `${tipo}Estampas`;
                 estado.configItemAtual[key] = estado.configItemAtual[key].filter(e => e.id !== id);
                 renderizarEstampas(tipo);
             }
@@ -461,12 +475,6 @@ function setupEventListeners() {
         atualizarDisplayPrecoConfig();
     });
 
-    // Listener para Preço Bordado
-    el.precoBordado.addEventListener('input', (e) => {
-        estado.configItemAtual.precoBordado = parseFloat(e.target.value) || 0;
-        atualizarDisplayPrecoConfig();
-    });
-
     el.btnAdicionarEstampaDtf.addEventListener('click', () => {
         estado.configItemAtual.dtfEstampas.push({ id: Date.now(), tamanho: el.dtfTamanhoSelect.value });
         renderizarEstampas('dtf');
@@ -475,6 +483,26 @@ function setupEventListeners() {
     el.btnAdicionarEstampaSilk.addEventListener('click', () => {
         estado.configItemAtual.silkEstampas.push({ id: Date.now(), cores: Number(el.silkCoresSelect.value) });
         renderizarEstampas('silk');
+    });
+
+    el.btnAdicionarBordado.addEventListener('click', () => {
+        const preco = parseFloat(el.inputPrecoBordado.value);
+        const descricao = el.inputDescBordado.value.trim();
+
+        if (isNaN(preco) || preco <= 0) {
+            alert("Por favor, insira um preço válido para o bordado.");
+            return;
+        }
+
+        estado.configItemAtual.bordados.push({
+            id: Date.now(),
+            preco: preco,
+            descricao: descricao
+        });
+
+        el.inputPrecoBordado.value = '';
+        el.inputDescBordado.value = '';
+        renderizarEstampas('bordado');
     });
 
     el.btnAdicionarItem.addEventListener('click', () => {
@@ -624,7 +652,12 @@ function getMetodoDesc(item) {
     }
 
     if (item.temBordado) {
-        descricoes.push(`BORDADO (R$ ${formatarMoeda(item.precoBordado)})`);
+        if (item.bordados.length === 0) {
+            descricoes.push("BORDADO (Sem itens)");
+        } else {
+            const detalhes = item.bordados.map(b => `${b.descricao || 'Bordado'} (${formatarMoeda(b.preco)})`).join(', ');
+            descricoes.push(`BORDADO [${detalhes}]`);
+        }
     }
 
     if (descricoes.length === 0) return "Sem Estampa (Lisa)";
