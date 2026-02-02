@@ -112,9 +112,12 @@ function getPrecoSilk(qtd, cores) {
 const getEstadoInicialItem = () => ({
     produtoId: null,
     quantidade: 12,
-    metodo: 'nenhum',
+    temSilk: false,
+    temDtf: false,
+    temBordado: false,
     silkEstampas: [],
     dtfEstampas: [],
+    precoBordado: 0,
     imagens: [],
     manual: false,
     valorAdicional: 0,
@@ -136,15 +139,28 @@ const el = {
     produtoSearch: document.getElementById('produtoSearch'),
     produtoList: document.getElementById('produtoList'),
     quantidade: document.getElementById('quantidade'),
-    metodoEstampa: document.getElementById('metodoEstampa'),
+    
+    // Checkboxes de Método
+    checkSilk: document.getElementById('checkSilk'),
+    checkDtf: document.getElementById('checkDtf'),
+    checkBordado: document.getElementById('checkBordado'),
+
+    // Seções de Método
     opcoesSilk: document.getElementById('opcoesSilk'),
+    opcoesDtf: document.getElementById('opcoesDtf'),
+    opcoesBordado: document.getElementById('opcoesBordado'),
+
+    // Inputs Específicos
     silkCoresSelect: document.getElementById('silkCoresSelect'),
     btnAdicionarEstampaSilk: document.getElementById('btnAdicionarEstampaSilk'),
     silkEstampasList: document.getElementById('silkEstampasList'),
-    opcoesDtf: document.getElementById('opcoesDtf'),
+    
     dtfTamanhoSelect: document.getElementById('dtfTamanhoSelect'),
     btnAdicionarEstampaDtf: document.getElementById('btnAdicionarEstampaDtf'),
     dtfEstampasList: document.getElementById('dtfEstampasList'),
+
+    precoBordado: document.getElementById('precoBordado'),
+
     dropZone: document.getElementById('dropZone'),
     uploadImagens: document.getElementById('uploadImagens'),
     previewArea: document.getElementById('previewArea'),
@@ -179,7 +195,7 @@ function calcularPrecoItem(item) {
     if (!produto) return { precoUnit: 0, precoTotal: 0 };
 
     if (item.manual) {
-        const precoUnit = item.precoManual;
+        const precoUnit = parseFloat(item.precoManual) || 0;
         return { precoUnit, precoTotal: precoUnit * item.quantidade };
     }
 
@@ -189,15 +205,26 @@ function calcularPrecoItem(item) {
     else precoBase = produto.p12;
 
     let custoEstampa = 0;
-    if (item.metodo === 'silk') {
+
+    // Custo Silk
+    if (item.temSilk) {
         if (item.quantidade >= 30) {
-            custoEstampa = item.silkEstampas.reduce((total, estampa) => total + getPrecoSilk(item.quantidade, estampa.cores), 0);
+            custoEstampa += item.silkEstampas.reduce((total, estampa) => total + getPrecoSilk(item.quantidade, estampa.cores), 0);
         }
-    } else if (item.metodo === 'dtf') {
-        custoEstampa = item.dtfEstampas.reduce((total, estampa) => total + (precosDTF[estampa.tamanho] || 0), 0);
     }
 
-    const precoUnit = precoBase + custoEstampa + item.valorAdicional;
+    // Custo DTF
+    if (item.temDtf) {
+        custoEstampa += item.dtfEstampas.reduce((total, estampa) => total + (precosDTF[estampa.tamanho] || 0), 0);
+    }
+
+    // Custo Bordado
+    if (item.temBordado) {
+        custoEstampa += parseFloat(item.precoBordado) || 0;
+    }
+
+    const markup = parseFloat(item.valorAdicional) || 0;
+    const precoUnit = precoBase + custoEstampa + markup;
     return { precoUnit, precoTotal: precoUnit * item.quantidade };
 }
 
@@ -281,14 +308,24 @@ function preencherFormularioComItem(item) {
     const produto = produtos.find(p => p.id === item.produtoId);
     el.produtoSearch.value = produto ? produto.nome : '';
     el.quantidade.value = item.quantidade;
-    el.metodoEstampa.value = item.metodo;
+    
+    // Checkboxes
+    el.checkSilk.checked = item.temSilk;
+    el.checkDtf.checked = item.temDtf;
+    el.checkBordado.checked = item.temBordado;
+
+    // Visibilidade das seções
+    el.opcoesSilk.classList.toggle('hidden', !item.temSilk);
+    el.opcoesDtf.classList.toggle('hidden', !item.temDtf);
+    el.opcoesBordado.classList.toggle('hidden', !item.temBordado);
+
+    // Valores
+    el.precoBordado.value = item.precoBordado;
     el.valorAdicional.value = item.valorAdicional;
     el.precoManual.value = item.precoManual;
     el.modoManualToggle.checked = item.manual;
     el.descricaoAdicional.value = item.descricaoAdicional;
 
-    el.opcoesSilk.classList.toggle('hidden', item.metodo !== 'silk');
-    el.opcoesDtf.classList.toggle('hidden', item.metodo !== 'dtf');
     const manualOuAdicional = item.manual || item.valorAdicional > 0;
     el.descricaoAdicionalContainer.classList.toggle('hidden', !manualOuAdicional);
     el.areaCalculoAutomatico.classList.toggle('hidden', item.manual);
@@ -343,14 +380,22 @@ function resetarConfigItem() {
     estado.configItemAtual = getEstadoInicialItem();
     el.produtoSearch.value = '';
     el.quantidade.value = 12;
-    el.metodoEstampa.value = 'nenhum';
+    
+    el.checkSilk.checked = false;
+    el.checkDtf.checked = false;
+    el.checkBordado.checked = false;
+
+    el.opcoesSilk.classList.add('hidden');
+    el.opcoesDtf.classList.add('hidden');
+    el.opcoesBordado.classList.add('hidden');
+
+    el.precoBordado.value = 0;
     el.valorAdicional.value = 0;
     el.precoManual.value = 0;
     el.modoManualToggle.checked = false;
     el.descricaoAdicional.value = '';
     el.descricaoAdicionalContainer.classList.add('hidden');
-    el.opcoesSilk.classList.add('hidden');
-    el.opcoesDtf.classList.add('hidden');
+    
     el.previewArea.innerHTML = '';
     el.uploadImagens.value = '';
     renderizarEstampas('dtf');
@@ -395,6 +440,31 @@ function setupEventListeners() {
             estado.configItemAtual.imagens.splice(index, 1);
             renderizarImagens();
         }
+    });
+
+    // Listeners para Checkboxes de Método
+    el.checkSilk.addEventListener('change', (e) => {
+        estado.configItemAtual.temSilk = e.target.checked;
+        el.opcoesSilk.classList.toggle('hidden', !e.target.checked);
+        atualizarDisplayPrecoConfig();
+    });
+
+    el.checkDtf.addEventListener('change', (e) => {
+        estado.configItemAtual.temDtf = e.target.checked;
+        el.opcoesDtf.classList.toggle('hidden', !e.target.checked);
+        atualizarDisplayPrecoConfig();
+    });
+
+    el.checkBordado.addEventListener('change', (e) => {
+        estado.configItemAtual.temBordado = e.target.checked;
+        el.opcoesBordado.classList.toggle('hidden', !e.target.checked);
+        atualizarDisplayPrecoConfig();
+    });
+
+    // Listener para Preço Bordado
+    el.precoBordado.addEventListener('input', (e) => {
+        estado.configItemAtual.precoBordado = parseFloat(e.target.value) || 0;
+        atualizarDisplayPrecoConfig();
     });
 
     el.btnAdicionarEstampaDtf.addEventListener('click', () => {
@@ -447,7 +517,7 @@ function setupEventListeners() {
     el.uploadImagens.addEventListener('change', (e) => processarArquivos(e.target.files));
 
     const propMap = {
-        'quantidade': 'quantidade', 'metodoEstampa': 'metodo',
+        'quantidade': 'quantidade',
         'valorAdicional': 'valorAdicional', 'precoManual': 'precoManual',
         'modoManualToggle': 'manual', 'descricaoAdicional': 'descricaoAdicional'
     };
@@ -461,10 +531,6 @@ function setupEventListeners() {
             const value = element.type === 'checkbox' ? e.target.checked : (element.type === 'number' ? Number(e.target.value) : e.target.value);
             estado.configItemAtual[prop] = value;
             
-            if (key === 'metodoEstampa') {
-                el.opcoesSilk.classList.toggle('hidden', value !== 'silk');
-                el.opcoesDtf.classList.toggle('hidden', value !== 'dtf');
-            }
             if (key === 'modoManualToggle' || key === 'valorAdicional') {
                 const manualOuAdicional = estado.configItemAtual.manual || Number(estado.configItemAtual.valorAdicional) > 0;
                 el.descricaoAdicionalContainer.classList.toggle('hidden', !manualOuAdicional);
@@ -529,19 +595,40 @@ function processarArquivos(files) {
 
 // --- GERAÇÃO DE PDF ---
 function getMetodoDesc(item) {
-    const formatDesc = (tipo, estampas) => {
-        if (estampas.length === 0) return tipo.toUpperCase();
-        const contagem = estampas.reduce((acc, e) => {
-            const key = tipo === 'silk' ? `${e.cores} Cores` : e.tamanho;
-            acc[key] = (acc[key] || 0) + 1;
-            return acc;
-        }, {});
-        return `${tipo.toUpperCase()} (${Object.entries(contagem).map(([k, q]) => `${q}x ${k}`).join(', ')})`;
-    };
+    let descricoes = [];
 
-    if (item.metodo === 'silk') return formatDesc('silk', item.silkEstampas);
-    if (item.metodo === 'dtf') return formatDesc('dtf', item.dtfEstampas);
-    return "Sem Estampa";
+    if (item.temSilk) {
+        if (item.silkEstampas.length === 0) {
+            descricoes.push("SILK (Sem estampas)");
+        } else {
+            const contagem = item.silkEstampas.reduce((acc, e) => {
+                const key = `${e.cores} Cores`;
+                acc[key] = (acc[key] || 0) + 1;
+                return acc;
+            }, {});
+            descricoes.push(`SILK (${Object.entries(contagem).map(([k, q]) => `${q}x ${k}`).join(', ')})`);
+        }
+    }
+
+    if (item.temDtf) {
+        if (item.dtfEstampas.length === 0) {
+            descricoes.push("DTF (Sem estampas)");
+        } else {
+            const contagem = item.dtfEstampas.reduce((acc, e) => {
+                const key = e.tamanho;
+                acc[key] = (acc[key] || 0) + 1;
+                return acc;
+            }, {});
+            descricoes.push(`DTF (${Object.entries(contagem).map(([k, q]) => `${q}x ${k}`).join(', ')})`);
+        }
+    }
+
+    if (item.temBordado) {
+        descricoes.push(`BORDADO (R$ ${formatarMoeda(item.precoBordado)})`);
+    }
+
+    if (descricoes.length === 0) return "Sem Estampa (Lisa)";
+    return descricoes.join(" + ");
 }
 
 function desenharRodapePDF(doc, startY) {
@@ -601,7 +688,16 @@ async function criarDocumentoPDF() {
     const cliente = el.clienteNome.value || "Cliente Não Identificado";
 
     if (estado.logoBase64) {
-        doc.addImage(estado.logoBase64, 'PNG', 14, 12, 40, 10);
+        try {
+            const logoProps = doc.getImageProperties(estado.logoBase64);
+            const ratio = logoProps.width / logoProps.height;
+            let w = 40;
+            let h = w / ratio;
+            if (h > 15) { h = 15; w = h * ratio; }
+            doc.addImage(estado.logoBase64, 'PNG', 14, 12, w, h);
+        } catch (e) {
+            doc.addImage(estado.logoBase64, 'PNG', 14, 12, 40, 10);
+        }
     } else {
         doc.setFontSize(22).text("BRUNX IND.", 14, 20);
     }
@@ -646,6 +742,7 @@ async function criarDocumentoPDF() {
                 if (currentX > 150) { currentX = 14; finalY += 45; }
                 if (finalY > 250) { doc.addPage(); finalY = 20; }
                 try {
+                    const format = imgData.substring(imgData.indexOf('/') + 1, imgData.indexOf(';'));
                     const imgProps = doc.getImageProperties(imgData);
                     const aspectRatio = imgProps.width / imgProps.height;
                     let imgWidth = 40;
@@ -655,7 +752,7 @@ async function criarDocumentoPDF() {
                     } else {
                         imgWidth = 40 * aspectRatio;
                     }
-                    doc.addImage(imgData, 'JPEG', currentX, finalY, imgWidth, imgHeight);
+                    doc.addImage(imgData, format.toUpperCase(), currentX, finalY, imgWidth, imgHeight, undefined, 'FAST');
                 }
                 catch (err) { console.error("Erro ao adicionar imagem:", err); }
                 currentX += 45;

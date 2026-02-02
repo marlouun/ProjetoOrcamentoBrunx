@@ -1,7 +1,7 @@
 :root {
     --primary-color: #1a1a1a;
     --accent-color: #007bff;
-    --bg-color: #f8f9fa;
+    --bg-color: #000000;
     --card-bg: #ffffff;
     --text-color: #212529;
     --text-muted: #6c757d;
@@ -30,7 +30,7 @@ header {
     margin-bottom: 2.5rem;
 }
 .logo { max-width: 180px; margin-bottom: 0.5rem; }
-header p { color: var(--text-muted); font-size: 1.1rem; font-weight: 300; }
+header p { color: #ffffff; font-size: 1.1rem; font-weight: 300; }
 
 .card {
     background: var(--card-bg);
@@ -102,13 +102,13 @@ small { display: block; margin-top: 0.5rem; color: var(--text-muted); font-size:
     transition: all 0.2s;
     margin-top: 1rem;
 }
-.btn-add-item { background-color: var(--accent-color); color: white; }
-.btn-add-item:hover { background-color: #0056b3; }
+.btn-add-item { background-color: #000000; color: white; }
+.btn-add-item:hover { background-color: #333333; }
 .btn-cancel { background-color: var(--text-muted); color: white; }
 .btn-cancel:hover { background-color: #5a6268; }
 
 .btn-add-estampa {
-    background-color: var(--primary-color);
+    background-color: #000000;
     color: white;
     padding: 0.75rem 1.25rem;
     border: none;
@@ -117,6 +117,7 @@ small { display: block; margin-top: 0.5rem; color: var(--text-muted); font-size:
     cursor: pointer;
     height: fit-content;
 }
+.btn-add-estampa:hover { background-color: #333333; }
 
 /* Drag and Drop & Preview */
 .drop-zone {
@@ -167,7 +168,7 @@ small { display: block; margin-top: 0.5rem; color: var(--text-muted); font-size:
     margin-bottom: 0.75rem;
     gap: 1rem;
 }
-.estampa-adicionada { padding: 0.5rem 1rem; background-color: var(--bg-color); }
+.estampa-adicionada { padding: 0.5rem 1rem; background-color: #f8f9fa; }
 .item-adicionado .info, .estampa-adicionada .info { flex-grow: 1; }
 .item-adicionado .info strong { display: block; font-size: 1.05rem; font-weight: 600; }
 .item-adicionado .info span { font-size: 0.9rem; color: var(--text-muted); }
@@ -189,7 +190,7 @@ small { display: block; margin-top: 0.5rem; color: var(--text-muted); font-size:
 /* Barra de Resumo */
 .resumo-bar {
     position: fixed; bottom: 0; left: 0; width: 100%;
-    background: var(--primary-color); color: white;
+    background: #000000; color: white;
     padding: 1rem 1.5rem; display: flex; justify-content: center;
     align-items: center; gap: 2rem; box-shadow: 0 -5px 15px rgba(0,0,0,0.1);
     z-index: 100;
@@ -199,13 +200,13 @@ small { display: block; margin-top: 0.5rem; color: var(--text-muted); font-size:
 .resumo-bar strong { font-size: 1.5rem; display: block; font-weight: 600; }
 
 #btnGerarPdf, #btnPreviewPdf {
-    background: white; color: var(--primary-color); border: none;
+    background: white; color: #000000; border: none;
     padding: 0.75rem 1.5rem; border-radius: 50px; font-weight: 600;
     cursor: pointer; font-size: 0.9rem; text-transform: uppercase;
     transition: transform 0.2s;
 }
 #btnGerarPdf:hover, #btnPreviewPdf:hover { transform: scale(1.05); }
-#btnPreviewPdf { background: var(--accent-color); color: white; }
+#btnPreviewPdf { background: #333333; color: white; }
 
 /* Autocomplete */
 .autocomplete { position: relative; }
@@ -235,6 +236,55 @@ small { display: block; margin-top: 0.5rem; color: var(--text-muted); font-size:
 .modal-header h2 { font-size: 1.3rem; margin: 0; }
 .close-button { background: none; border: none; font-size: 2rem; cursor: pointer; color: var(--text-muted); }
 #pdfPreviewFrame { flex-grow: 1; border: 1px solid var(--border-color); }
+
+/* Créditos do Desenvolvedor */
+.developer-credit {
+    text-align: center;
+    padding: 1rem;
+    color: #666;
+    font-size: 0.8rem;
+    margin-top: 2rem;
+    opacity: 0.7;
+}
+
+/* Métodos de Personalização */
+.methods-group {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+.checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.checkbox-item input[type="checkbox"] {
+    width: 1.15rem;
+    height: 1.15rem;
+    cursor: pointer;
+}
+.checkbox-item label {
+    margin-bottom: 0;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.method-section {
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    margin-top: 1rem;
+    background-color: #fdfdfd;
+}
+.section-label {
+    font-weight: 600;
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+    display: block;
+    color: var(--primary-color);
+}
+
 
 @media (max-width: 600px) {
     .row { flex-direction: column; gap: 0; align-items: stretch; }
