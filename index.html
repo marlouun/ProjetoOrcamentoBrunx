@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador de Orçamentos - Brunx</title>
+
+    <link rel="stylesheet" href="style.css">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <img src="images/LogoBrunx.png" alt="Logo Brunx" class="logo">
+        <p>Sistema de Orçamentos</p>
+    </header>
+
+    <div class="card">
+        <h2>1. Dados do Cliente</h2>
+        <div class="form-group">
+            <label>Nome do Cliente / Empresa</label>
+            <input type="text" id="clienteNome" placeholder="Ex: João Silva - Marca X">
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 id="configFormTitle">2. Configurar e Adicionar Item</h2>
+
+        <div class="row">
+            <div class="form-group autocomplete">
+                <label>Modelo da Peça</label>
+                <input type="text" id="produtoSearch" placeholder="Digite para buscar...">
+                <div id="produtoList" class="autocomplete-items hidden"></div>
+            </div>
+            <div class="form-group">
+                <label>Quantidade de Peças</label>
+                <input type="number" id="quantidade" value="12" min="1">
+            </div>
+        </div>
+        <div class="price-display" id="precoPecaDisplay">Preço Unit. Peça: R$ 0,00</div>
+
+        <div class="divider"></div>
+
+        <div class="form-group">
+            <label>Método de Personalização:</label>
+            <select id="metodoEstampa">
+                <option value="nenhum">Sem Estampa (Lisa)</option>
+                <option value="silk">Serigrafia (Silk)</option>
+                <option value="dtf">DTF (Digital)</option>
+            </select>
+        </div>
+
+        <div id="opcoesSilk" class="hidden">
+            <label>Adicionar Estampas Silk (Serigrafia):</label>
+            <div class="row">
+                <div class="form-group">
+                    <select id="silkCoresSelect">
+                        <option value="1">1 Cor</option><option value="2">2 Cores</option><option value="3">3 Cores</option><option value="4">4 Cores</option><option value="5">5 Cores</option><option value="6">6 Cores</option>
+                    </select>
+                </div>
+                <button id="btnAdicionarEstampaSilk" class="btn-add-estampa">Adicionar</button>
+            </div>
+            <div id="silkEstampasList" class="estampas-list">
+                <p class="empty-state-small">Nenhuma estampa Silk adicionada.</p>
+            </div>
+            <small>Mínimo de 30 peças para Silk.</small>
+        </div>
+
+        <div id="opcoesDtf" class="hidden">
+            <label>Adicionar Estampas DTF:</label>
+            <div class="row">
+                <div class="form-group">
+                    <select id="dtfTamanhoSelect">
+                        <option value="PP">PP (até 5cm)</option><option value="P">P (até 10cm)</option><option value="M">M (até 20cm)</option><option value="G">G (até 30cm)</option><option value="GG">GG (até 40cm)</option><option value="XG">XG (até 50cm)</option><option value="XGG">XGG (Acima de 50cm)</option>
+                    </select>
+                </div>
+                <button id="btnAdicionarEstampaDtf" class="btn-add-estampa">Adicionar</button>
+            </div>
+            <div id="dtfEstampasList" class="estampas-list">
+                <p class="empty-state-small">Nenhuma estampa DTF adicionada.</p>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="form-group">
+            <label>Imagens de Referência para este Item (Opcional)</label>
+            <div id="dropZone" class="drop-zone">
+                <p>Arraste e solte as imagens aqui, ou <label for="uploadImagens" class="file-input-label">clique para escolher</label>.</p>
+                <input type="file" id="uploadImagens" multiple accept="image/*" class="hidden">
+            </div>
+            <div class="preview-area" id="previewArea"></div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="form-group checkbox-group">
+            <input type="checkbox" id="modoManualToggle">
+            <label for="modoManualToggle"><strong>Ativar Preço Manual (Sobrescrever Cálculo)</strong></label>
+        </div>
+        <div id="areaCalculoAutomatico">
+            <div class="form-group">
+                <label>Valor Adicional / Markup (R$)</label>
+                <input type="number" id="valorAdicional" value="0" step="0.50">
+            </div>
+        </div>
+        <div id="areaCalculoManual" class="hidden">
+            <div class="form-group">
+                <label>Preço FINAL por peça (Manual)</label>
+                <input type="number" id="precoManual" value="0" step="0.50">
+            </div>
+        </div>
+        <div id="descricaoAdicionalContainer" class="form-group hidden">
+            <label>Descrição do Valor Adicional / Manual</label>
+            <input type="text" id="descricaoAdicional" placeholder="Ex: Embalagem especial, gola personalizada...">
+        </div>
+
+        <div class="form-actions">
+            <button id="btnAdicionarItem" class="btn-add-item">Adicionar Item ao Orçamento</button>
+            <button id="btnCancelarEdicao" class="btn-cancel hidden">Cancelar Edição</button>
+        </div>
+    </div>
+
+    <div id="itensAdicionadosCard" class="card">
+        <h2>3. Itens do Orçamento</h2>
+        <div id="itensContainer">
+            <p class="empty-state">Nenhum item adicionado ainda.</p>
+        </div>
+    </div>
+
+    <div class="resumo-bar">
+        <div>
+            <span>Itens:</span>
+            <strong id="totalItens">0</strong>
+        </div>
+        <div>
+            <span>Total do Orçamento:</span>
+            <strong id="totalPedido">R$ 0,00</strong>
+        </div>
+        <button id="btnPreviewPdf">PRÉ-VISUALIZAR</button>
+        <button id="btnGerarPdf">BAIXAR ORÇAMENTO PDF</button>
+    </div>
+</div>
+
+<div id="pdfPreviewModal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Pré-visualização do Orçamento</h2>
+            <button id="closePreviewModal" class="close-button">&times;</button>
+        </div>
+        <iframe id="pdfPreviewFrame" width="100%"></iframe>
+    </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
