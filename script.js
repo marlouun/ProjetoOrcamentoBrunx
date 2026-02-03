@@ -98,14 +98,27 @@ const produtos = [
 
 const precosDTF = { "PP": 1.00, "P": 2.50, "M": 6.00, "G": 8.00, "GG": 14.00, "XG": 16.00, "XGG": 18.00 };
 
-function getPrecoSilk(qtd, cores) {
-    let precoBase = 0;
-    if (qtd >= 250) precoBase = 4.00;
-    else if (qtd >= 200) precoBase = 4.50;
-    else if (qtd >= 100) precoBase = 5.50;
-    else if (qtd >= 30) precoBase = 6.50;
-    else return 0;
-    return precoBase + ((cores - 1) * 1.50);
+const tabelaSilk = {
+    30:  [6.50, 8.50, 11.00, 13.50, 15.50, 17.50, 19.50, 21.50, 23.50, 25.50],
+    50:  [6.00, 7.50, 9.50, 11.00, 13.00, 15.00, 17.00, 19.00, 21.00, 23.00],
+    100: [5.50, 7.00, 8.50, 9.50, 11.00, 13.00, 15.00, 17.00, 19.00, 21.00],
+    150: [5.00, 6.00, 7.00, 8.00, 9.00, 10.00, 11.00, 12.00, 13.00, 14.00],
+    200: [4.50, 5.50, 6.50, 7.50, 8.50, 9.50, 10.50, 11.50, 12.50, 13.50],
+    250: [4.00, 5.00, 6.00, 7.00, 8.00, 9.00, 10.00, 11.00, 12.00, 13.00]
+};
+
+function calcularSilk(qtd, cores) {
+    if (qtd < 30) return 0;
+    cores = Math.max(1, Math.min(cores, 10));
+    
+    let tier = 30;
+    if (qtd >= 250) tier = 250;
+    else if (qtd >= 200) tier = 200;
+    else if (qtd >= 150) tier = 150;
+    else if (qtd >= 100) tier = 100;
+    else if (qtd >= 50) tier = 50;
+
+    return tabelaSilk[tier][cores - 1];
 }
 
 // --- ESTADO DA APLICAÇÃO ---
@@ -117,12 +130,14 @@ const getEstadoInicialItem = () => ({
     temBordado: false,
     silkEstampas: [],
     dtfEstampas: [],
-    bordados: [], // Lista de objetos { id, preco, descricao }
+    bordados: [],
     imagens: [],
     manual: false,
     valorAdicional: 0,
     precoManual: 0,
     descricaoAdicional: '',
+    usarPrecoBasePersonalizado: false,
+    precoBasePersonalizado: 0,
 });
 
 let estado = {
@@ -139,30 +154,28 @@ const el = {
     produtoSearch: document.getElementById('produtoSearch'),
     produtoList: document.getElementById('produtoList'),
     quantidade: document.getElementById('quantidade'),
+    precoBasePersonalizadoToggle: document.getElementById('precoBasePersonalizadoToggle'),
+    precoBasePersonalizadoContainer: document.getElementById('precoBasePersonalizadoContainer'),
+    precoBasePersonalizado: document.getElementById('precoBasePersonalizado'),
     
-    // Checkboxes de Método
-    checkSilk: document.getElementById('checkSilk'),
-    checkDtf: document.getElementById('checkDtf'),
-    checkBordado: document.getElementById('checkBordado'),
+    silkToggle: document.getElementById('silkToggle'),
+    dtfToggle: document.getElementById('dtfToggle'),
+    bordadoToggle: document.getElementById('bordadoToggle'),
 
-    // Seções de Método
     opcoesSilk: document.getElementById('opcoesSilk'),
-    opcoesDtf: document.getElementById('opcoesDtf'),
-    opcoesBordado: document.getElementById('opcoesBordado'),
-
-    // Inputs Específicos
     silkCoresSelect: document.getElementById('silkCoresSelect'),
     btnAdicionarEstampaSilk: document.getElementById('btnAdicionarEstampaSilk'),
-    silkEstampasList: document.getElementById('silkEstampasList'),
+    silkList: document.getElementById('silkList'),
     
+    opcoesDtf: document.getElementById('opcoesDtf'),
     dtfTamanhoSelect: document.getElementById('dtfTamanhoSelect'),
     btnAdicionarEstampaDtf: document.getElementById('btnAdicionarEstampaDtf'),
-    dtfEstampasList: document.getElementById('dtfEstampasList'),
+    dtfList: document.getElementById('dtfList'),
 
-    inputPrecoBordado: document.getElementById('inputPrecoBordado'),
-    inputDescBordado: document.getElementById('inputDescBordado'),
+    opcoesBordado: document.getElementById('opcoesBordado'),
+    bordadoPreco: document.getElementById('bordadoPreco'),
     btnAdicionarBordado: document.getElementById('btnAdicionarBordado'),
-    bordadosList: document.getElementById('bordadosList'),
+    bordadoList: document.getElementById('bordadoList'),
 
     dropZone: document.getElementById('dropZone'),
     uploadImagens: document.getElementById('uploadImagens'),
@@ -178,7 +191,8 @@ const el = {
     btnAdicionarItem: document.getElementById('btnAdicionarItem'),
     btnCancelarEdicao: document.getElementById('btnCancelarEdicao'),
     itensContainer: document.getElementById('itensContainer'),
-    totalItens: document.getElementById('totalItens'),
+    fabContainer: document.querySelector('.fab-container'),
+    fabMain: document.getElementById('fabMain'),
     totalPedido: document.getElementById('totalPedido'),
     pdfPreviewModal: document.getElementById('pdfPreviewModal'),
     pdfPreviewFrame: document.getElementById('pdfPreviewFrame'),
@@ -194,42 +208,43 @@ function formatarMoeda(valor) {
 
 // --- LÓGICA DE CÁLCULO ---
 function calcularPrecoItem(item) {
-    const produto = produtos.find(p => p.id === item.produtoId);
-    if (!produto) return { precoUnit: 0, precoTotal: 0 };
+    const quantidade = parseInt(item.quantidade) || 0;
+    const precoManual = parseFloat(item.precoManual) || 0;
+    const precoBasePersonalizado = parseFloat(item.precoBasePersonalizado) || 0;
+    const valorAdicional = parseFloat(item.valorAdicional) || 0;
 
     if (item.manual) {
-        const precoUnit = parseFloat(item.precoManual) || 0;
-        return { precoUnit, precoTotal: precoUnit * item.quantidade };
+        const precoUnit = precoManual;
+        return { precoUnit, precoTotal: precoUnit * quantidade };
     }
 
     let precoBase = 0;
-    if (item.quantidade >= 150) precoBase = produto.p150;
-    else if (item.quantidade >= 50) precoBase = produto.p50;
-    else precoBase = produto.p12;
-
-    let custoEstampa = 0;
-
-    // Custo Silk
-    if (item.temSilk) {
-        if (item.quantidade >= 30) {
-            custoEstampa += item.silkEstampas.reduce((total, estampa) => total + getPrecoSilk(item.quantidade, estampa.cores), 0);
+    if (item.usarPrecoBasePersonalizado) {
+        precoBase = precoBasePersonalizado;
+    } else {
+        const produto = produtos.find(p => p.id === item.produtoId);
+        if (produto) {
+            if (quantidade >= 150) precoBase = produto.p150;
+            else if (quantidade >= 50) precoBase = produto.p50;
+            else precoBase = produto.p12;
         }
     }
 
-    // Custo DTF
+    let custoEstampa = 0;
+    if (item.temSilk) {
+        custoEstampa += item.silkEstampas.reduce((total, estampa) => total + calcularSilk(quantidade, estampa.cores), 0);
+    }
     if (item.temDtf) {
         custoEstampa += item.dtfEstampas.reduce((total, estampa) => total + (precosDTF[estampa.tamanho] || 0), 0);
     }
-
-    // Custo Bordado
     if (item.temBordado) {
         custoEstampa += item.bordados.reduce((total, bordado) => total + bordado.preco, 0);
     }
 
-    const markup = parseFloat(item.valorAdicional) || 0;
-    const precoUnit = precoBase + custoEstampa + markup;
-    return { precoUnit, precoTotal: precoUnit * item.quantidade };
+    const precoUnit = precoBase + custoEstampa + valorAdicional;
+    return { precoUnit, precoTotal: precoUnit * quantidade };
 }
+
 
 // --- ATUALIZAÇÃO DA INTERFACE ---
 function atualizarDisplayPrecoConfig() {
@@ -238,27 +253,23 @@ function atualizarDisplayPrecoConfig() {
 }
 
 function renderizarEstampas(tipo) {
-    const listaEl = tipo === 'bordado' ? el.bordadosList : el[`${tipo}EstampasList`];
     const key = tipo === 'bordado' ? 'bordados' : `${tipo}Estampas`;
-    const itens = estado.configItemAtual[key];
+    const listaEl = el[`${tipo}List`];
+    const estampas = estado.configItemAtual[key];
     
-    listaEl.innerHTML = '';
-    
-    if (itens.length === 0) {
-        const msg = tipo === 'bordado' ? 'Nenhum bordado adicionado.' : `Nenhuma estampa ${tipo.toUpperCase()} adicionada.`;
-        listaEl.innerHTML = `<p class="empty-state-small">${msg}</p>`;
-    } else {
-        itens.forEach(item => {
-            let desc = '';
-            if (tipo === 'silk') desc = `${item.cores} Cores`;
-            else if (tipo === 'dtf') desc = `Tamanho ${item.tamanho}`;
-            else if (tipo === 'bordado') desc = `${item.descricao || 'Sem descrição'} - ${formatarMoeda(item.preco)}`;
+    if(!listaEl) return;
 
+    listaEl.innerHTML = '';
+    if (estampas.length === 0) {
+        listaEl.innerHTML = `<p class="empty-state-small">Nenhum(a) ${tipo} adicionado(a).</p>`;
+    } else {
+        estampas.forEach(estampa => {
+            const desc = tipo === 'silk' ? `${estampa.cores} Cores` : (tipo === 'dtf' ? `Tamanho ${estampa.tamanho}` : formatarMoeda(estampa.preco));
             const div = document.createElement('div');
             div.className = 'estampa-adicionada';
             div.innerHTML = `
-                <span class="info">${tipo === 'bordado' ? '' : '1x Estampa '}${desc}</span>
-                <button class="remover-item" data-id="${item.id}" data-tipo="${tipo}">✖️</button>
+                <span class="info">1x ${tipo === 'bordado' ? 'Bordado' : 'Estampa'} ${desc}</span>
+                <button class="remover-item" data-id="${estampa.id}" data-tipo="${tipo}">✖️</button>
             `;
             listaEl.appendChild(div);
         });
@@ -290,7 +301,7 @@ function renderizarItensOrcamento() {
             div.className = 'item-adicionado';
             div.innerHTML = `
                 <div class="info">
-                    <strong>${produto.nome}</strong>
+                    <strong>${produto ? produto.nome : 'Peça com preço base personalizado'}</strong>
                     <span>${item.quantidade} un. | ${getMetodoDesc(item)}</span>
                 </div>
                 <div class="preco">
@@ -310,7 +321,6 @@ function renderizarItensOrcamento() {
 
 function atualizarResumoTotal() {
     const total = estado.itensOrcamento.reduce((sum, item) => sum + item.precoTotal, 0);
-    el.totalItens.textContent = estado.itensOrcamento.length;
     el.totalPedido.textContent = formatarMoeda(total);
 }
 
@@ -320,26 +330,26 @@ function preencherFormularioComItem(item) {
     el.produtoSearch.value = produto ? produto.nome : '';
     el.quantidade.value = item.quantidade;
     
-    // Checkboxes
-    el.checkSilk.checked = item.temSilk;
-    el.checkDtf.checked = item.temDtf;
-    el.checkBordado.checked = item.temBordado;
+    el.silkToggle.checked = item.temSilk;
+    el.dtfToggle.checked = item.temDtf;
+    el.bordadoToggle.checked = item.temBordado;
 
-    // Visibilidade das seções
-    el.opcoesSilk.classList.toggle('hidden', !item.temSilk);
-    el.opcoesDtf.classList.toggle('hidden', !item.temDtf);
-    el.opcoesBordado.classList.toggle('hidden', !item.temBordado);
-
-    // Valores
     el.valorAdicional.value = item.valorAdicional;
     el.precoManual.value = item.precoManual;
     el.modoManualToggle.checked = item.manual;
     el.descricaoAdicional.value = item.descricaoAdicional;
+    el.precoBasePersonalizadoToggle.checked = item.usarPrecoBasePersonalizado;
+    el.precoBasePersonalizado.value = item.precoBasePersonalizado;
+
+    el.opcoesSilk.classList.toggle('hidden', !item.temSilk);
+    el.opcoesDtf.classList.toggle('hidden', !item.temDtf);
+    el.opcoesBordado.classList.toggle('hidden', !item.temBordado);
 
     const manualOuAdicional = item.manual || item.valorAdicional > 0;
     el.descricaoAdicionalContainer.classList.toggle('hidden', !manualOuAdicional);
     el.areaCalculoAutomatico.classList.toggle('hidden', item.manual);
     el.areaCalculoManual.classList.toggle('hidden', !item.manual);
+    el.precoBasePersonalizadoContainer.classList.toggle('hidden', !item.usarPrecoBasePersonalizado);
 
     renderizarEstampas('silk');
     renderizarEstampas('dtf');
@@ -392,23 +402,21 @@ function resetarConfigItem() {
     el.produtoSearch.value = '';
     el.quantidade.value = 12;
     
-    el.checkSilk.checked = false;
-    el.checkDtf.checked = false;
-    el.checkBordado.checked = false;
+    el.silkToggle.checked = false;
+    el.dtfToggle.checked = false;
+    el.bordadoToggle.checked = false;
 
-    el.opcoesSilk.classList.add('hidden');
-    el.opcoesDtf.classList.add('hidden');
-    el.opcoesBordado.classList.add('hidden');
-
-    el.inputPrecoBordado.value = '';
-    el.inputDescBordado.value = '';
-    
     el.valorAdicional.value = 0;
     el.precoManual.value = 0;
     el.modoManualToggle.checked = false;
     el.descricaoAdicional.value = '';
     el.descricaoAdicionalContainer.classList.add('hidden');
-    
+    el.precoBasePersonalizadoToggle.checked = false;
+    el.precoBasePersonalizadoContainer.classList.add('hidden');
+    el.precoBasePersonalizado.value = 0;
+    el.opcoesSilk.classList.add('hidden');
+    el.opcoesDtf.classList.add('hidden');
+    el.opcoesBordado.classList.add('hidden');
     el.previewArea.innerHTML = '';
     el.uploadImagens.value = '';
     renderizarEstampas('dtf');
@@ -429,7 +437,10 @@ function setupEventListeners() {
 
     document.addEventListener('click', (e) => {
         const target = e.target;
-        if (!target.closest('.autocomplete')) el.produtoList.classList.add('hidden');
+        if (!target.closest('.autocomplete') && !target.closest('.fab-container')) {
+            el.produtoList.classList.add('hidden');
+            el.fabContainer.classList.remove('open');
+        }
         
         if (target.closest('.remover-item')) {
             const id = Number(target.closest('.remover-item').dataset.id);
@@ -456,23 +467,8 @@ function setupEventListeners() {
         }
     });
 
-    // Listeners para Checkboxes de Método
-    el.checkSilk.addEventListener('change', (e) => {
-        estado.configItemAtual.temSilk = e.target.checked;
-        el.opcoesSilk.classList.toggle('hidden', !e.target.checked);
-        atualizarDisplayPrecoConfig();
-    });
-
-    el.checkDtf.addEventListener('change', (e) => {
-        estado.configItemAtual.temDtf = e.target.checked;
-        el.opcoesDtf.classList.toggle('hidden', !e.target.checked);
-        atualizarDisplayPrecoConfig();
-    });
-
-    el.checkBordado.addEventListener('change', (e) => {
-        estado.configItemAtual.temBordado = e.target.checked;
-        el.opcoesBordado.classList.toggle('hidden', !e.target.checked);
-        atualizarDisplayPrecoConfig();
+    el.fabMain.addEventListener('click', () => {
+        el.fabContainer.classList.toggle('open');
     });
 
     el.btnAdicionarEstampaDtf.addEventListener('click', () => {
@@ -486,31 +482,20 @@ function setupEventListeners() {
     });
 
     el.btnAdicionarBordado.addEventListener('click', () => {
-        const preco = parseFloat(el.inputPrecoBordado.value);
-        const descricao = el.inputDescBordado.value.trim();
-
-        if (isNaN(preco) || preco <= 0) {
-            alert("Por favor, insira um preço válido para o bordado.");
-            return;
+        const preco = parseFloat(el.bordadoPreco.value) || 0;
+        if (preco > 0) {
+            estado.configItemAtual.bordados.push({ id: Date.now(), preco: preco });
+            renderizarEstampas('bordado');
+            el.bordadoPreco.value = 0;
         }
-
-        estado.configItemAtual.bordados.push({
-            id: Date.now(),
-            preco: preco,
-            descricao: descricao
-        });
-
-        el.inputPrecoBordado.value = '';
-        el.inputDescBordado.value = '';
-        renderizarEstampas('bordado');
     });
 
     el.btnAdicionarItem.addEventListener('click', () => {
         if (estado.editandoItemId !== null) {
             salvarItemEditado();
         } else {
-            if (estado.configItemAtual.produtoId === null) {
-                alert("Por favor, selecione um produto antes de adicionar.");
+            if (estado.configItemAtual.produtoId === null && !estado.configItemAtual.usarPrecoBasePersonalizado) {
+                alert("Por favor, selecione um produto ou defina um preço base personalizado.");
                 return;
             }
             const itemParaAdicionar = JSON.parse(JSON.stringify(estado.configItemAtual));
@@ -547,7 +532,13 @@ function setupEventListeners() {
     const propMap = {
         'quantidade': 'quantidade',
         'valorAdicional': 'valorAdicional', 'precoManual': 'precoManual',
-        'modoManualToggle': 'manual', 'descricaoAdicional': 'descricaoAdicional'
+        'modoManualToggle': 'manual', 'descricaoAdicional': 'descricaoAdicional',
+        'precoBasePersonalizadoToggle': 'usarPrecoBasePersonalizado',
+        'precoBasePersonalizado': 'precoBasePersonalizado',
+        'bordadoPreco': 'bordadoPreco',
+        'silkToggle': 'temSilk',
+        'dtfToggle': 'temDtf',
+        'bordadoToggle': 'temBordado'
     };
 
     Object.keys(propMap).forEach(key => {
@@ -559,6 +550,10 @@ function setupEventListeners() {
             const value = element.type === 'checkbox' ? e.target.checked : (element.type === 'number' ? Number(e.target.value) : e.target.value);
             estado.configItemAtual[prop] = value;
             
+            if (key === 'silkToggle') el.opcoesSilk.classList.toggle('hidden', !value);
+            if (key === 'dtfToggle') el.opcoesDtf.classList.toggle('hidden', !value);
+            if (key === 'bordadoToggle') el.opcoesBordado.classList.toggle('hidden', !value);
+
             if (key === 'modoManualToggle' || key === 'valorAdicional') {
                 const manualOuAdicional = estado.configItemAtual.manual || Number(estado.configItemAtual.valorAdicional) > 0;
                 el.descricaoAdicionalContainer.classList.toggle('hidden', !manualOuAdicional);
@@ -566,6 +561,9 @@ function setupEventListeners() {
             if (key === 'modoManualToggle') {
                 el.areaCalculoAutomatico.classList.toggle('hidden', value);
                 el.areaCalculoManual.classList.toggle('hidden', !value);
+            }
+            if (key === 'precoBasePersonalizadoToggle') {
+                el.precoBasePersonalizadoContainer.classList.toggle('hidden', !value);
             }
             atualizarDisplayPrecoConfig();
         });
@@ -623,45 +621,28 @@ function processarArquivos(files) {
 
 // --- GERAÇÃO DE PDF ---
 function getMetodoDesc(item) {
-    let descricoes = [];
-
-    if (item.temSilk) {
-        if (item.silkEstampas.length === 0) {
-            descricoes.push("SILK (Sem estampas)");
-        } else {
-            const contagem = item.silkEstampas.reduce((acc, e) => {
-                const key = `${e.cores} Cores`;
-                acc[key] = (acc[key] || 0) + 1;
-                return acc;
-            }, {});
-            descricoes.push(`SILK (${Object.entries(contagem).map(([k, q]) => `${q}x ${k}`).join(', ')})`);
-        }
+    const metodos = [];
+    if (item.temSilk && item.silkEstampas.length > 0) {
+        const contagem = item.silkEstampas.reduce((acc, e) => {
+            const key = `${e.cores} Cores`;
+            acc[key] = (acc[key] || 0) + 1;
+            return acc;
+        }, {});
+        metodos.push(`Silk (${Object.entries(contagem).map(([k, q]) => `${q}x ${k}`).join(', ')})`);
+    }
+    if (item.temDtf && item.dtfEstampas.length > 0) {
+        const contagem = item.dtfEstampas.reduce((acc, e) => {
+            acc[e.tamanho] = (acc[e.tamanho] || 0) + 1;
+            return acc;
+        }, {});
+        metodos.push(`DTF (${Object.entries(contagem).map(([k, q]) => `${q}x ${k}`).join(', ')})`);
+    }
+    if (item.temBordado && item.bordados.length > 0) {
+        const totalBordado = item.bordados.reduce((total, b) => total + b.preco, 0);
+        metodos.push(`${item.bordados.length}x Bordado (${formatarMoeda(totalBordado)})`);
     }
 
-    if (item.temDtf) {
-        if (item.dtfEstampas.length === 0) {
-            descricoes.push("DTF (Sem estampas)");
-        } else {
-            const contagem = item.dtfEstampas.reduce((acc, e) => {
-                const key = e.tamanho;
-                acc[key] = (acc[key] || 0) + 1;
-                return acc;
-            }, {});
-            descricoes.push(`DTF (${Object.entries(contagem).map(([k, q]) => `${q}x ${k}`).join(', ')})`);
-        }
-    }
-
-    if (item.temBordado) {
-        if (item.bordados.length === 0) {
-            descricoes.push("BORDADO (Sem itens)");
-        } else {
-            const detalhes = item.bordados.map(b => `${b.descricao || 'Bordado'} (${formatarMoeda(b.preco)})`).join(', ');
-            descricoes.push(`BORDADO [${detalhes}]`);
-        }
-    }
-
-    if (descricoes.length === 0) return "Sem Estampa (Lisa)";
-    return descricoes.join(" + ");
+    return metodos.length > 0 ? metodos.join(' + ') : "Sem Personalização";
 }
 
 function desenharRodapePDF(doc, startY) {
@@ -721,16 +702,7 @@ async function criarDocumentoPDF() {
     const cliente = el.clienteNome.value || "Cliente Não Identificado";
 
     if (estado.logoBase64) {
-        try {
-            const logoProps = doc.getImageProperties(estado.logoBase64);
-            const ratio = logoProps.width / logoProps.height;
-            let w = 40;
-            let h = w / ratio;
-            if (h > 15) { h = 15; w = h * ratio; }
-            doc.addImage(estado.logoBase64, 'PNG', 14, 12, w, h);
-        } catch (e) {
-            doc.addImage(estado.logoBase64, 'PNG', 14, 12, 40, 10);
-        }
+        doc.addImage(estado.logoBase64, 'PNG', 14, 12, 40, 10);
     } else {
         doc.setFontSize(22).text("BRUNX IND.", 14, 20);
     }
@@ -745,7 +717,7 @@ async function criarDocumentoPDF() {
         if (finalY > 250) { doc.addPage(); finalY = 20; }
         const produto = produtos.find(p => p.id === item.produtoId);
         const tableBody = [[
-            produto.nome,
+            produto ? produto.nome : 'Peça com preço base personalizado',
             item.quantidade,
             getMetodoDesc(item),
             formatarMoeda(item.precoUnit),
@@ -775,7 +747,6 @@ async function criarDocumentoPDF() {
                 if (currentX > 150) { currentX = 14; finalY += 45; }
                 if (finalY > 250) { doc.addPage(); finalY = 20; }
                 try {
-                    const format = imgData.substring(imgData.indexOf('/') + 1, imgData.indexOf(';'));
                     const imgProps = doc.getImageProperties(imgData);
                     const aspectRatio = imgProps.width / imgProps.height;
                     let imgWidth = 40;
@@ -785,7 +756,7 @@ async function criarDocumentoPDF() {
                     } else {
                         imgWidth = 40 * aspectRatio;
                     }
-                    doc.addImage(imgData, format.toUpperCase(), currentX, finalY, imgWidth, imgHeight, undefined, 'FAST');
+                    doc.addImage(imgData, 'JPEG', currentX, finalY, imgWidth, imgHeight);
                 }
                 catch (err) { console.error("Erro ao adicionar imagem:", err); }
                 currentX += 45;

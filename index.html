@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gerador de Orçamentos - Brunx</title>
 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
     <link rel="stylesheet" href="style.css">
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -16,10 +20,14 @@
     <header>
         <img src="images/LogoBrunxBranca.png" alt="Logo Brunx" class="logo">
         <p>Sistema de Orçamentos</p>
+        <small class="credits">By Marlon Albino © 2026</small>
     </header>
 
     <div class="card">
-        <h2>1. Dados do Cliente</h2>
+        <h2 class="card-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            1. Dados do Cliente
+        </h2>
         <div class="form-group">
             <label>Nome do Cliente / Empresa</label>
             <input type="text" id="clienteNome" placeholder="Ex: João Silva - Marca X">
@@ -27,7 +35,10 @@
     </div>
 
     <div class="card">
-        <h2 id="configFormTitle">2. Configurar e Adicionar Item</h2>
+        <h2 id="configFormTitle" class="card-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
+            2. Configurar e Adicionar Item
+        </h2>
 
         <div class="row">
             <div class="form-group autocomplete">
@@ -42,75 +53,64 @@
         </div>
         <div class="price-display" id="precoPecaDisplay">Preço Unit. Peça: R$ 0,00</div>
 
+        <div class="form-group checkbox-group mt-3">
+            <input type="checkbox" id="precoBasePersonalizadoToggle">
+            <label for="precoBasePersonalizadoToggle">Usar preço base da peça personalizado</label>
+        </div>
+        <div id="precoBasePersonalizadoContainer" class="form-group hidden">
+            <label>Preço Base da Peça (R$)</label>
+            <input type="number" id="precoBasePersonalizado" value="0" step="0.01">
+        </div>
+
         <div class="divider"></div>
 
-        <div class="form-group">
-            <label>Métodos de Personalização (Selecione um ou mais):</label>
-            <div class="methods-group">
-                <div class="checkbox-item">
-                    <input type="checkbox" id="checkSilk">
-                    <label for="checkSilk">Serigrafia (Silk)</label>
-                </div>
-                <div class="checkbox-item">
-                    <input type="checkbox" id="checkDtf">
-                    <label for="checkDtf">DTF (Digital)</label>
-                </div>
-                <div class="checkbox-item">
-                    <input type="checkbox" id="checkBordado">
-                    <label for="checkBordado">Bordado</label>
-                </div>
+        <label>Métodos de Personalização</label>
+        <div class="personalizacao-container">
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="silkToggle">
+                <label for="silkToggle">Serigrafia (Silk)</label>
             </div>
-        </div>
+            <div id="opcoesSilk" class="hidden personalizacao-opcoes">
+                <div class="row">
+                    <div class="form-group">
+                        <select id="silkCoresSelect">
+                            <option value="1">1 Cor</option><option value="2">2 Cores</option><option value="3">3 Cores</option><option value="4">4 Cores</option><option value="5">5 Cores</option><option value="6">6 Cores</option><option value="7">7 Cores</option><option value="8">8 Cores</option><option value="9">9 Cores</option><option value="10">10 Cores</option>
+                        </select>
+                    </div>
+                    <button id="btnAdicionarEstampaSilk" class="btn-add-estampa">Adicionar</button>
+                </div>
+                <div id="silkList" class="estampas-list"></div>
+                <small>Mínimo de 30 peças para Silk.</small>
+            </div>
 
-        <!-- Opções SILK -->
-        <div id="opcoesSilk" class="hidden method-section">
-            <label class="section-label">Configuração Silk (Serigrafia):</label>
-            <div class="row">
-                <div class="form-group">
-                    <select id="silkCoresSelect">
-                        <option value="1">1 Cor</option><option value="2">2 Cores</option><option value="3">3 Cores</option><option value="4">4 Cores</option><option value="5">5 Cores</option><option value="6">6 Cores</option>
-                    </select>
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="dtfToggle">
+                <label for="dtfToggle">DTF (Digital)</label>
+            </div>
+            <div id="opcoesDtf" class="hidden personalizacao-opcoes">
+                <div class="row">
+                    <div class="form-group">
+                        <select id="dtfTamanhoSelect">
+                            <option value="PP">PP (até 5cm)</option><option value="P">P (até 10cm)</option><option value="M">M (até 20cm)</option><option value="G">G (até 30cm)</option><option value="GG">GG (até 40cm)</option><option value="XG">XG (até 50cm)</option><option value="XGG">XGG (Acima de 50cm)</option>
+                        </select>
+                    </div>
+                    <button id="btnAdicionarEstampaDtf" class="btn-add-estampa">Adicionar</button>
                 </div>
-                <button id="btnAdicionarEstampaSilk" class="btn-add-estampa">Adicionar Estampa</button>
+                <div id="dtfList" class="estampas-list"></div>
             </div>
-            <div id="silkEstampasList" class="estampas-list">
-                <p class="empty-state-small">Nenhuma estampa Silk adicionada.</p>
-            </div>
-            <small>Mínimo de 30 peças para Silk.</small>
-        </div>
 
-        <!-- Opções DTF -->
-        <div id="opcoesDtf" class="hidden method-section">
-            <label class="section-label">Configuração DTF:</label>
-            <div class="row">
-                <div class="form-group">
-                    <select id="dtfTamanhoSelect">
-                        <option value="PP">PP (até 5cm)</option><option value="P">P (até 10cm)</option><option value="M">M (até 20cm)</option><option value="G">G (até 30cm)</option><option value="GG">GG (até 40cm)</option><option value="XG">XG (até 50cm)</option><option value="XGG">XGG (Acima de 50cm)</option>
-                    </select>
-                </div>
-                <button id="btnAdicionarEstampaDtf" class="btn-add-estampa">Adicionar Estampa</button>
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="bordadoToggle">
+                <label for="bordadoToggle">Bordado</label>
             </div>
-            <div id="dtfEstampasList" class="estampas-list">
-                <p class="empty-state-small">Nenhuma estampa DTF adicionada.</p>
-            </div>
-        </div>
-
-        <!-- Opções BORDADO -->
-        <div id="opcoesBordado" class="hidden method-section">
-            <label class="section-label">Configuração Bordado:</label>
-            <div class="row">
-                <div class="form-group">
-                    <label style="font-size: 0.85rem; margin-bottom: 0.2rem;">Preço Unit. deste Bordado (R$)</label>
-                    <input type="number" id="inputPrecoBordado" value="" step="0.10" placeholder="0.00">
+            <div id="opcoesBordado" class="hidden personalizacao-opcoes">
+                <div class="row">
+                    <div class="form-group">
+                        <input type="number" id="bordadoPreco" value="0" step="0.50" placeholder="Preço do Bordado (R$)">
+                    </div>
+                    <button id="btnAdicionarBordado" class="btn-add-estampa">Adicionar</button>
                 </div>
-                <div class="form-group">
-                    <label style="font-size: 0.85rem; margin-bottom: 0.2rem;">Descrição (Opcional)</label>
-                    <input type="text" id="inputDescBordado" placeholder="Ex: Peito, Manga...">
-                </div>
-                <button id="btnAdicionarBordado" class="btn-add-estampa">Adicionar</button>
-            </div>
-            <div id="bordadosList" class="estampas-list">
-                <p class="empty-state-small">Nenhum bordado adicionado.</p>
+                <div id="bordadoList" class="estampas-list"></div>
             </div>
         </div>
 
@@ -129,7 +129,7 @@
 
         <div class="form-group checkbox-group">
             <input type="checkbox" id="modoManualToggle">
-            <label for="modoManualToggle"><strong>Ativar Preço Manual (Sobrescrever Cálculo)</strong></label>
+            <label for="modoManualToggle"><strong>Ativar Preço Final Manual (Sobrescrever Cálculo)</strong></label>
         </div>
         <div id="areaCalculoAutomatico">
             <div class="form-group">
@@ -155,29 +155,30 @@
     </div>
 
     <div id="itensAdicionadosCard" class="card">
-        <h2>3. Itens do Orçamento</h2>
+        <h2 class="card-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+            3. Itens do Orçamento
+        </h2>
         <div id="itensContainer">
             <p class="empty-state">Nenhum item adicionado ainda.</p>
         </div>
     </div>
-
-    <footer class="developer-credit">
-        <p>Desenvolvido por Marlon Albino ® 2026</p>
-    </footer>
-
-    <div class="resumo-bar">
-        <div>
-            <span>Itens:</span>
-            <strong id="totalItens">0</strong>
-        </div>
-        <div>
-            <span>Total do Orçamento:</span>
-            <strong id="totalPedido">R$ 0,00</strong>
-        </div>
-        <button id="btnPreviewPdf">PRÉ-VISUALIZAR</button>
-        <button id="btnGerarPdf">BAIXAR ORÇAMENTO PDF</button>
-    </div>
 </div>
+
+<div class="fab-container">
+    <div class="fab-actions">
+        <button id="btnGerarPdf" class="fab-action">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        </button>
+        <button id="btnPreviewPdf" class="fab-action">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        </button>
+    </div>
+    <button class="fab-main" id="fabMain">
+        <span id="totalPedido">R$ 0,00</span>
+    </button>
+</div>
+
 
 <div id="pdfPreviewModal" class="modal-overlay hidden">
     <div class="modal-content">
