@@ -654,7 +654,7 @@ function desenharRodapePDF(doc, startY) {
     }
 
     doc.setFontSize(10);
-    doc.setFont(undefined, 'bold');
+    doc.setFont('helvetica', 'bold');
     doc.text('Informações Adicionais', margin, startY);
     startY += 8;
 
@@ -672,12 +672,12 @@ function desenharRodapePDF(doc, startY) {
     const drawSection = (colX, initialY, title, content) => {
         let currentY = initialY;
         doc.setFontSize(titleFontSize);
-        doc.setFont(undefined, 'bold');
+        doc.setFont('helvetica', 'bold');
         doc.text(title, colX, currentY);
         currentY += lineHeight;
         
         doc.setFontSize(textFontSize);
-        doc.setFont(undefined, 'normal');
+        doc.setFont('helvetica', 'normal');
         const textLines = doc.splitTextToSize(content, colWidth);
         doc.text(textLines, colX, currentY);
         
@@ -702,7 +702,16 @@ async function criarDocumentoPDF() {
     const cliente = el.clienteNome.value || "Cliente Não Identificado";
 
     if (estado.logoBase64) {
-        doc.addImage(estado.logoBase64, 'PNG', 14, 12, 40, 10);
+        try {
+            const imgProps = doc.getImageProperties(estado.logoBase64);
+            const aspectRatio = imgProps.width / imgProps.height;
+            const logoWidth = 30;
+            const logoHeight = logoWidth / aspectRatio;
+            doc.addImage(estado.logoBase64, 'PNG', 14, 12, logoWidth, logoHeight);
+        } catch (e) {
+            console.error("Erro ao adicionar logo:", e);
+            doc.setFontSize(22).text("BRUNX IND.", 14, 20);
+        }
     } else {
         doc.setFontSize(22).text("BRUNX IND.", 14, 20);
     }
@@ -775,7 +784,7 @@ async function criarDocumentoPDF() {
     doc.setFontSize(12);
     doc.text('Total Geral do Orçamento:', 14, finalY);
     doc.setFontSize(14);
-    doc.setFont(undefined, 'bold');
+    doc.setFont('helvetica', 'bold');
     doc.text(formatarMoeda(totalGeral), 196, finalY, { align: 'right' });
     finalY += 15;
     
