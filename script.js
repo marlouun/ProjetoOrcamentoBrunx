@@ -550,7 +550,13 @@ function setupEventListeners() {
             const value = element.type === 'checkbox' ? e.target.checked : (element.type === 'number' ? Number(e.target.value) : e.target.value);
             estado.configItemAtual[prop] = value;
             
-            if (key === 'silkToggle') el.opcoesSilk.classList.toggle('hidden', !value);
+            if (key === 'silkToggle') {
+                el.opcoesSilk.classList.toggle('hidden', !value);
+                if (value && estado.configItemAtual.quantidade < 30) {
+                    estado.configItemAtual.quantidade = 30;
+                    el.quantidade.value = 30;
+                }
+            }
             if (key === 'dtfToggle') el.opcoesDtf.classList.toggle('hidden', !value);
             if (key === 'bordadoToggle') el.opcoesBordado.classList.toggle('hidden', !value);
 
@@ -648,50 +654,51 @@ function getMetodoDesc(item) {
 function desenharRodapePDF(doc, startY) {
     const pageHeight = doc.internal.pageSize.height;
     const margin = 14;
-    if (startY > pageHeight - 75) {
+    if (startY > pageHeight - 90) { // Give it enough space
         doc.addPage();
         startY = margin;
     }
 
     doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
+    doc.setFont(undefined, 'bold');
     doc.text('Informações Adicionais', margin, startY);
     startY += 8;
 
     const col1X = margin;
-    const col2X = 78;
-    const col3X = 142;
-    const colWidth = 62;
-    const lineHeight = 4;
-    const sectionSpacing = 5;
+    const col2X = 108; // Second column starts at 108
+    const colWidth = 88; // Width for text splitting
+    const lineHeight = 4.5;
+    const sectionSpacing = 7;
     const titleFontSize = 9;
     const textFontSize = 8;
 
-    let y1 = startY, y2 = startY, y3 = startY;
+    let y1 = startY;
+    let y2 = startY;
 
     const drawSection = (colX, initialY, title, content) => {
         let currentY = initialY;
         doc.setFontSize(titleFontSize);
-        doc.setFont('helvetica', 'bold');
+        doc.setFont(undefined, 'bold');
         doc.text(title, colX, currentY);
-        currentY += lineHeight;
+        currentY += lineHeight + 1; // Extra space after title
         
         doc.setFontSize(textFontSize);
-        doc.setFont('helvetica', 'normal');
+        doc.setFont(undefined, 'normal');
         const textLines = doc.splitTextToSize(content, colWidth);
         doc.text(textLines, colX, currentY);
         
         return currentY + (textLines.length * lineHeight) + sectionSpacing;
     };
 
-    y1 = drawSection(col1X, y1, 'Serviços Inclusos', 'Mockup digital, ficha técnica, acompanhamento de produção e controle de qualidade.');
-    y1 = drawSection(col1X, y1, 'Frete', 'Calculado à parte, conforme região.');
+    // Column 1
+    y1 = drawSection(col1X, y1, 'Serviços Inclusos', '• Mockup para divulgação\n• Ficha técnica detalhada\n• Acompanhamento de produção\n• Controle de qualidade peça por peça');
+    y1 = drawSection(col1X, y1, 'Pagamento', '• 50% entrada + 50% na finalização (PIX)\n• PIX à vista\n• Cartão em até 6x');
+    y1 = drawSection(col1X, y1, 'Frete', '• Calculado à parte, conforme região.');
 
-    y2 = drawSection(col2X, y2, 'Pagamento', '50% de entrada + 50% na finalização (PIX), PIX à vista ou Cartão em até 6x.');
-    y2 = drawSection(col2X, y2, 'Pedido Mínimo', '• DTF: 12 peças\n• Serigrafia: 30 peças');
-
-    y3 = drawSection(col3X, y3, 'Prazo de Produção', '• Lisas: até 48h para despacho.\n• DTF: até 15 dias úteis.\n• Silk: até 20 dias úteis.\n(após aprovação da ficha técnica)');
-    y3 = drawSection(col3X, y3, 'Regras de Personalização', '• Máx. 2 cores de peça por ref.\n• Grade de tamanho livre.\n• +R$ 4,00 a partir do G3.');
+    // Column 2
+    y2 = drawSection(col2X, y2, 'Pedido Mínimo', '• DTF: 12 peças\n• Serigrafia: 30 peças\n• Bordado: 30 peças');
+    y2 = drawSection(col2X, y2, 'Prazo de Produção', '• Lisas: até 48h para despacho\n• DTF: até 15 dias úteis\n• Silk: até 20 dias úteis\n(após aprovação da ficha técnica)');
+    y2 = drawSection(col2X, y2, 'Regras de Personalização', '• Máx. 2 cores de peça por ref.\n• Grade de tamanho livre\n• +R$ 4,00 a partir do G3');
 }
 
 async function criarDocumentoPDF() {
@@ -702,16 +709,11 @@ async function criarDocumentoPDF() {
     const cliente = el.clienteNome.value || "Cliente Não Identificado";
 
     if (estado.logoBase64) {
-        try {
-            const imgProps = doc.getImageProperties(estado.logoBase64);
-            const aspectRatio = imgProps.width / imgProps.height;
-            const logoWidth = 30;
-            const logoHeight = logoWidth / aspectRatio;
-            doc.addImage(estado.logoBase64, 'PNG', 14, 12, logoWidth, logoHeight);
-        } catch (e) {
-            console.error("Erro ao adicionar logo:", e);
-            doc.setFontSize(22).text("BRUNX IND.", 14, 20);
-        }
+        const imgProps = doc.getImageProperties(estado.logoBase64);
+        const aspectRatio = imgProps.width / imgProps.height;
+        const logoWidth = 35; // Reduced from 40
+        const logoHeight = logoWidth / aspectRatio;
+        doc.addImage(estado.logoBase64, 'PNG', 14, 12, logoWidth, logoHeight);
     } else {
         doc.setFontSize(22).text("BRUNX IND.", 14, 20);
     }
@@ -784,7 +786,7 @@ async function criarDocumentoPDF() {
     doc.setFontSize(12);
     doc.text('Total Geral do Orçamento:', 14, finalY);
     doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
+    doc.setFont(undefined, 'bold');
     doc.text(formatarMoeda(totalGeral), 196, finalY, { align: 'right' });
     finalY += 15;
     
