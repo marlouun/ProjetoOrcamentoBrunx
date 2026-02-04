@@ -143,6 +143,7 @@ function calcularSilk(qtd, cores) {
 // --- ESTADO DA APLICAÇÃO ---
 const getEstadoInicialItem = () => ({
     produtoId: null,
+    nomeProdutoPersonalizado: '', // Novo campo para nome personalizado
     quantidade: 12,
     temSilk: false,
     temDtf: false,
@@ -220,12 +221,20 @@ const el = {
     btnPreviewPdf: document.getElementById('btnPreviewPdf'),
     btnGerarPdf: document.getElementById('btnGerarPdf'),
     descontoGlobalToggle: document.getElementById('descontoGlobalToggle'),
-    infoAdicionaisToggle: document.getElementById('infoAdicionaisToggle'), // Novo elemento
+    infoAdicionaisToggle: document.getElementById('infoAdicionaisToggle'),
 };
 
 // --- FUNÇÕES AUXILIARES ---
 function formatarMoeda(valor) {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
+}
+
+function getNomeProduto(item) {
+    if (item.produtoId !== null) {
+        const produto = produtos.find(p => p.id === item.produtoId);
+        return produto ? produto.nome : 'Produto Desconhecido';
+    }
+    return item.nomeProdutoPersonalizado || 'Peça Personalizada';
 }
 
 // --- LÓGICA DE CÁLCULO ---
@@ -285,8 +294,6 @@ function recalcularTodosItens() {
 
 // --- ATUALIZAÇÃO DA INTERFACE ---
 function atualizarDisplayPrecoConfig() {
-    // Nota: O display de configuração sempre mostra o preço baseado na quantidade configurada no momento,
-    // sem considerar o total do pedido, pois o item ainda não foi adicionado.
     const { precoUnit } = calcularPrecoItem(estado.configItemAtual);
     el.precoPecaDisplay.innerText = `Preço Unit. do Item Configurado: ${formatarMoeda(precoUnit)}`;
 }
@@ -335,12 +342,11 @@ function renderizarItensOrcamento() {
         el.itensContainer.innerHTML = '<p class="empty-state">Nenhum item adicionado ainda.</p>';
     } else {
         estado.itensOrcamento.forEach(item => {
-            const produto = produtos.find(p => p.id === item.produtoId);
             const div = document.createElement('div');
             div.className = 'item-adicionado';
             div.innerHTML = `
                 <div class="info">
-                    <strong>${produto ? produto.nome : 'Peça com preço base personalizado'}</strong>
+                    <strong>${getNomeProduto(item)}</strong>
                     <span>${item.quantidade} un. | ${getMetodoDesc(item)}</span>
                 </div>
                 <div class="preco">
@@ -365,20 +371,28 @@ function atualizarResumoTotal() {
 
 function preencherFormularioComItem(item) {
     estado.configItemAtual = JSON.parse(JSON.stringify(item));
-    const produto = produtos.find(p => p.id === item.produtoId);
-    el.produtoSearch.value = produto ? produto.nome : '';
+    
+    if (item.produtoId !== null) {
+        const produto = produtos.find(p => p.id === item.produtoId);
+        el.produtoSearch.value = produto ? produto.nome : '';
+    } else {
+        el.produtoSearch.value = item.nomeProdutoPersonalizado || '';
+    }
+
     el.quantidade.value = item.quantidade;
     
     el.silkToggle.checked = item.temSilk;
     el.dtfToggle.checked = item.temDtf;
     el.bordadoToggle.checked = item.temBordado;
 
-    el.valorAdicional.value = item.valorAdicional;
-    el.precoManual.value = item.precoManual;
+    // Tratamento para valores zero/vazio
+    el.valorAdicional.value = item.valorAdicional || '';
+    el.precoManual.value = item.precoManual || '';
+    el.precoBasePersonalizado.value = item.precoBasePersonalizado || '';
+    
     el.modoManualToggle.checked = item.manual;
     el.descricaoAdicional.value = item.descricaoAdicional;
     el.precoBasePersonalizadoToggle.checked = item.usarPrecoBasePersonalizado;
-    el.precoBasePersonalizado.value = item.precoBasePersonalizado;
 
     el.opcoesSilk.classList.toggle('hidden', !item.temSilk);
     el.opcoesDtf.classList.toggle('hidden', !item.temDtf);
@@ -443,14 +457,14 @@ function resetarConfigItem() {
     el.dtfToggle.checked = false;
     el.bordadoToggle.checked = false;
 
-    el.valorAdicional.value = 0;
-    el.precoManual.value = 0;
+    el.valorAdicional.value = '';
+    el.precoManual.value = '';
     el.modoManualToggle.checked = false;
     el.descricaoAdicional.value = '';
     el.descricaoAdicionalContainer.classList.add('hidden');
     el.precoBasePersonalizadoToggle.checked = false;
     el.precoBasePersonalizadoContainer.classList.add('hidden');
-    el.precoBasePersonalizado.value = 0;
+    el.precoBasePersonalizado.value = '';
     el.opcoesSilk.classList.add('hidden');
     el.opcoesDtf.classList.add('hidden');
     el.opcoesBordado.classList.add('hidden');
@@ -465,9 +479,25 @@ function resetarConfigItem() {
 // --- MANIPULADORES DE EVENTOS ---
 function setupEventListeners() {
     el.produtoSearch.addEventListener('input', () => {
-        atualizarListaProdutos(el.produtoSearch.value);
-        if (estado.editandoItemId === null) {
+        const texto = el.produtoSearch.value;
+        atualizarListaProdutos(texto);
+        
+        // Se o usuário está digitando, assumimos que é um produto personalizado até que ele selecione um da lista
+        if (estado.editandoItemId === null || estado.configItemAtual.produtoId === null) {
             estado.configItemAtual.produtoId = null;
+            estado.configItemAtual.nomeProdutoPersonalizado = texto;
+            
+            // Ativa automaticamente o preço personalizado se não for um produto da lista
+            if (texto.length > 0) {
+                estado.configItemAtual.usarPrecoBasePersonalizado = true;
+                el.precoBasePersonalizadoToggle.checked = true;
+                el.precoBasePersonalizadoContainer.classList.remove('hidden');
+            } else {
+                // Se limpar o campo, reseta
+                estado.configItemAtual.usarPrecoBasePersonalizado = false;
+                el.precoBasePersonalizadoToggle.checked = false;
+                el.precoBasePersonalizadoContainer.classList.add('hidden');
+            }
         }
         atualizarDisplayPrecoConfig();
     });
@@ -523,7 +553,7 @@ function setupEventListeners() {
         if (preco > 0) {
             estado.configItemAtual.bordados.push({ id: Date.now(), preco: preco });
             renderizarEstampas('bordado');
-            el.bordadoPreco.value = 0;
+            el.bordadoPreco.value = ''; // Limpa o campo
         }
     });
 
@@ -531,10 +561,18 @@ function setupEventListeners() {
         if (estado.editandoItemId !== null) {
             salvarItemEditado();
         } else {
-            if (estado.configItemAtual.produtoId === null && !estado.configItemAtual.usarPrecoBasePersonalizado) {
-                alert("Por favor, selecione um produto ou defina um preço base personalizado.");
-                return;
+            // Validação: precisa ter um produto selecionado OU um nome personalizado com preço base definido
+            if (estado.configItemAtual.produtoId === null) {
+                if (!estado.configItemAtual.nomeProdutoPersonalizado || !estado.configItemAtual.usarPrecoBasePersonalizado) {
+                     alert("Por favor, selecione um produto da lista ou digite um nome e defina um preço base personalizado.");
+                     return;
+                }
+                if (estado.configItemAtual.precoBasePersonalizado <= 0 && !estado.configItemAtual.manual) {
+                    alert("Para produtos personalizados, informe o Preço Base da Peça.");
+                    return;
+                }
             }
+
             const itemParaAdicionar = JSON.parse(JSON.stringify(estado.configItemAtual));
             itemParaAdicionar.id = Date.now();
             
@@ -581,7 +619,17 @@ function setupEventListeners() {
         const eventType = element.type === 'checkbox' ? 'change' : 'input';
 
         element.addEventListener(eventType, (e) => {
-            const value = element.type === 'checkbox' ? e.target.checked : (element.type === 'number' ? Number(e.target.value) : e.target.value);
+            let value;
+            if (element.type === 'checkbox') {
+                value = e.target.checked;
+            } else if (element.type === 'number') {
+                // Se estiver vazio, salva como string vazia ou 0, dependendo da lógica, 
+                // mas aqui vamos manter o valor do input para não quebrar a UX de apagar tudo
+                value = e.target.value === '' ? '' : Number(e.target.value);
+            } else {
+                value = e.target.value;
+            }
+            
             estado.configItemAtual[prop] = value;
             
             if (key === 'silkToggle') {
@@ -595,7 +643,7 @@ function setupEventListeners() {
             if (key === 'bordadoToggle') el.opcoesBordado.classList.toggle('hidden', !value);
 
             if (key === 'modoManualToggle' || key === 'valorAdicional') {
-                const manualOuAdicional = estado.configItemAtual.manual || Number(estado.configItemAtual.valorAdicional) > 0;
+                const manualOuAdicional = estado.configItemAtual.manual || (Number(estado.configItemAtual.valorAdicional) > 0);
                 el.descricaoAdicionalContainer.classList.toggle('hidden', !manualOuAdicional);
             }
             if (key === 'modoManualToggle') {
@@ -631,10 +679,28 @@ function setupEventListeners() {
 function atualizarListaProdutos(filtro = '') {
     el.produtoList.innerHTML = '';
     const produtosFiltrados = produtos.filter(p => p.nome.toLowerCase().includes(filtro.toLowerCase()));
-    if (produtosFiltrados.length === 0) {
+    
+    // Se não houver filtro (campo vazio), não mostra nada
+    if (filtro === '') {
         el.produtoList.classList.add('hidden');
         return;
     }
+
+    if (produtosFiltrados.length === 0) {
+        // Opcional: Mostrar uma mensagem "Criar novo: [Nome]"
+        const item = document.createElement('div');
+        item.textContent = `Usar como novo: "${filtro}"`;
+        item.style.fontStyle = 'italic';
+        item.style.color = '#aaa';
+        // Clicar aqui apenas fecha a lista, pois o input já capturou o texto
+        item.addEventListener('click', () => {
+            el.produtoList.classList.add('hidden');
+        });
+        el.produtoList.appendChild(item);
+        el.produtoList.classList.remove('hidden');
+        return;
+    }
+
     produtosFiltrados.forEach(p => {
         const item = document.createElement('div');
         item.textContent = p.nome;
@@ -646,7 +712,13 @@ function atualizarListaProdutos(filtro = '') {
 
 function selecionarProduto(produto) {
     estado.configItemAtual.produtoId = produto.id;
+    estado.configItemAtual.nomeProdutoPersonalizado = ''; // Limpa nome personalizado
+    estado.configItemAtual.usarPrecoBasePersonalizado = false; // Desativa preço personalizado
+    
     el.produtoSearch.value = produto.nome;
+    el.precoBasePersonalizadoToggle.checked = false;
+    el.precoBasePersonalizadoContainer.classList.add('hidden');
+    
     el.produtoList.classList.add('hidden');
     atualizarDisplayPrecoConfig();
 }
@@ -766,9 +838,9 @@ async function criarDocumentoPDF() {
 
     for (const item of estado.itensOrcamento) {
         if (finalY > 250) { doc.addPage(); finalY = 20; }
-        const produto = produtos.find(p => p.id === item.produtoId);
+        
         const tableBody = [[
-            produto ? produto.nome : 'Peça com preço base personalizado',
+            getNomeProduto(item),
             item.quantidade,
             getMetodoDesc(item),
             formatarMoeda(item.precoUnit),

@@ -44,7 +44,7 @@
         <div class="row">
             <div class="form-group autocomplete">
                 <label>Modelo da Peça</label>
-                <input type="text" id="produtoSearch" placeholder="Digite para buscar...">
+                <input type="text" id="produtoSearch" placeholder="Digite para buscar ou criar novo...">
                 <div id="produtoList" class="autocomplete-items hidden"></div>
             </div>
             <div class="form-group">
@@ -60,7 +60,7 @@
         </div>
         <div id="precoBasePersonalizadoContainer" class="form-group hidden">
             <label>Preço Base da Peça (R$)</label>
-            <input type="number" id="precoBasePersonalizado" value="0" step="0.01">
+            <input type="number" id="precoBasePersonalizado" placeholder="0,00" step="0.01">
         </div>
 
         <div class="divider"></div>
@@ -107,7 +107,7 @@
             <div id="opcoesBordado" class="hidden personalizacao-opcoes">
                 <div class="row">
                     <div class="form-group">
-                        <input type="number" id="bordadoPreco" value="0" step="0.50" placeholder="Preço do Bordado (R$)">
+                        <input type="number" id="bordadoPreco" placeholder="Preço do Bordado (R$)" step="0.50">
                     </div>
                     <button id="btnAdicionarBordado" class="btn-add-estampa">Adicionar</button>
                 </div>
@@ -135,13 +135,13 @@
         <div id="areaCalculoAutomatico">
             <div class="form-group">
                 <label>Valor Adicional / Markup (R$)</label>
-                <input type="number" id="valorAdicional" value="0" step="0.50">
+                <input type="number" id="valorAdicional" placeholder="0,00" step="0.50">
             </div>
         </div>
         <div id="areaCalculoManual" class="hidden">
             <div class="form-group">
                 <label>Preço FINAL por peça (Manual)</label>
-                <input type="number" id="precoManual" value="0" step="0.50">
+                <input type="number" id="precoManual" placeholder="0,00" step="0.50">
             </div>
         </div>
         <div id="descricaoAdicionalContainer" class="form-group hidden">
