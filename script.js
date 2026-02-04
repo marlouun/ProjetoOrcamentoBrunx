@@ -98,26 +98,45 @@ const produtos = [
 
 const precosDTF = { "PP": 1.00, "P": 2.50, "M": 6.00, "G": 8.00, "GG": 14.00, "XG": 16.00, "XGG": 18.00 };
 
+// --- DADOS SILK (Transcrito da Imagem: 6 Tabelas de Preço) ---
+// Chave = Quantidade Mínima | Valor = Lista de preços para 1 até 10 cores
 const tabelaSilk = {
+    // A PARTIR DE 30 PEÇAS
     30:  [6.50, 8.50, 11.00, 13.50, 15.50, 17.50, 19.50, 21.50, 23.50, 25.50],
+
+    // A PARTIR DE 50 PEÇAS
     50:  [6.00, 7.50, 9.50, 11.00, 13.00, 15.00, 17.00, 19.00, 21.00, 23.00],
+
+    // A PARTIR DE 100 PEÇAS
     100: [5.50, 7.00, 8.50, 9.50, 11.00, 13.00, 15.00, 17.00, 19.00, 21.00],
+
+    // A PARTIR DE 150 PEÇAS
     150: [5.00, 6.00, 7.00, 8.00, 9.00, 10.00, 11.00, 12.00, 13.00, 14.00],
+
+    // A PARTIR DE 200 PEÇAS
     200: [4.50, 5.50, 6.50, 7.50, 8.50, 9.50, 10.50, 11.50, 12.50, 13.50],
+
+    // A PARTIR DE 250 PEÇAS
     250: [4.00, 5.00, 6.00, 7.00, 8.00, 9.00, 10.00, 11.00, 12.00, 13.00]
 };
 
+// Função Lógica para escolher a tabela certa
 function calcularSilk(qtd, cores) {
-    if (qtd < 30) return 0;
-    cores = Math.max(1, Math.min(cores, 10));
+    if (qtd < 30) return 0; // Mínimo 30 peças
     
-    let tier = 30;
+    // Limita as cores entre 1 e 10
+    if (cores < 1) cores = 1;
+    if (cores > 10) cores = 10;
+
+    // Verifica qual tabela usar (do maior para o menor)
+    let tier = 30; 
     if (qtd >= 250) tier = 250;
     else if (qtd >= 200) tier = 200;
     else if (qtd >= 150) tier = 150;
     else if (qtd >= 100) tier = 100;
     else if (qtd >= 50) tier = 50;
 
+    // Pega o preço (índice é cores - 1, pois array começa no zero)
     return tabelaSilk[tier][cores - 1];
 }
 
@@ -145,6 +164,7 @@ let estado = {
     itensOrcamento: [],
     editandoItemId: null,
     logoBase64: null,
+    usarDescontoGlobal: false,
 };
 
 // --- ELEMENTOS DO DOM ---
@@ -199,6 +219,8 @@ const el = {
     closePreviewModal: document.getElementById('closePreviewModal'),
     btnPreviewPdf: document.getElementById('btnPreviewPdf'),
     btnGerarPdf: document.getElementById('btnGerarPdf'),
+    descontoGlobalToggle: document.getElementById('descontoGlobalToggle'),
+    infoAdicionaisToggle: document.getElementById('infoAdicionaisToggle'), // Novo elemento
 };
 
 // --- FUNÇÕES AUXILIARES ---
@@ -207,11 +229,14 @@ function formatarMoeda(valor) {
 }
 
 // --- LÓGICA DE CÁLCULO ---
-function calcularPrecoItem(item) {
+function calcularPrecoItem(item, quantidadeTotalOverride = null) {
     const quantidade = parseInt(item.quantidade) || 0;
     const precoManual = parseFloat(item.precoManual) || 0;
     const precoBasePersonalizado = parseFloat(item.precoBasePersonalizado) || 0;
     const valorAdicional = parseFloat(item.valorAdicional) || 0;
+
+    // Se houver override (desconto global), usamos essa quantidade para definir a faixa de preço
+    const quantidadeParaCalculo = quantidadeTotalOverride !== null ? quantidadeTotalOverride : quantidade;
 
     if (item.manual) {
         const precoUnit = precoManual;
@@ -224,15 +249,15 @@ function calcularPrecoItem(item) {
     } else {
         const produto = produtos.find(p => p.id === item.produtoId);
         if (produto) {
-            if (quantidade >= 150) precoBase = produto.p150;
-            else if (quantidade >= 50) precoBase = produto.p50;
+            if (quantidadeParaCalculo >= 150) precoBase = produto.p150;
+            else if (quantidadeParaCalculo >= 50) precoBase = produto.p50;
             else precoBase = produto.p12;
         }
     }
 
     let custoEstampa = 0;
     if (item.temSilk) {
-        custoEstampa += item.silkEstampas.reduce((total, estampa) => total + calcularSilk(quantidade, estampa.cores), 0);
+        custoEstampa += item.silkEstampas.reduce((total, estampa) => total + calcularSilk(quantidadeParaCalculo, estampa.cores), 0);
     }
     if (item.temDtf) {
         custoEstampa += item.dtfEstampas.reduce((total, estampa) => total + (precosDTF[estampa.tamanho] || 0), 0);
@@ -245,9 +270,23 @@ function calcularPrecoItem(item) {
     return { precoUnit, precoTotal: precoUnit * quantidade };
 }
 
+function recalcularTodosItens() {
+    const totalPecas = estado.itensOrcamento.reduce((sum, item) => sum + (parseInt(item.quantidade) || 0), 0);
+    const qtdParaCalculo = estado.usarDescontoGlobal ? totalPecas : null;
+
+    estado.itensOrcamento = estado.itensOrcamento.map(item => {
+        const { precoUnit, precoTotal } = calcularPrecoItem(item, qtdParaCalculo);
+        return { ...item, precoUnit, precoTotal };
+    });
+
+    renderizarItensOrcamento();
+}
+
 
 // --- ATUALIZAÇÃO DA INTERFACE ---
 function atualizarDisplayPrecoConfig() {
+    // Nota: O display de configuração sempre mostra o preço baseado na quantidade configurada no momento,
+    // sem considerar o total do pedido, pois o item ainda não foi adicionado.
     const { precoUnit } = calcularPrecoItem(estado.configItemAtual);
     el.precoPecaDisplay.innerText = `Preço Unit. do Item Configurado: ${formatarMoeda(precoUnit)}`;
 }
@@ -386,14 +425,12 @@ function salvarItemEditado() {
     const index = estado.itensOrcamento.findIndex(item => item.id === estado.editandoItemId);
     if (index === -1) return;
 
-    const itemAtualizado = JSON.parse(JSON.stringify(estado.configItemAtual));
-    const { precoUnit, precoTotal } = calcularPrecoItem(itemAtualizado);
-    itemAtualizado.id = estado.editandoItemId;
-    itemAtualizado.precoUnit = precoUnit;
-    itemAtualizado.precoTotal = precoTotal;
+    // Atualiza o item no array
+    estado.itensOrcamento[index] = { ...estado.configItemAtual, id: estado.editandoItemId };
     
-    estado.itensOrcamento[index] = itemAtualizado;
-    renderizarItensOrcamento();
+    // Recalcula todos os itens (importante se a quantidade mudou e o desconto global estiver ativo)
+    recalcularTodosItens();
+    
     sairModoEdicao();
 }
 
@@ -447,7 +484,7 @@ function setupEventListeners() {
             const tipo = target.closest('.remover-item').dataset.tipo;
             if (tipo === 'item') {
                 estado.itensOrcamento = estado.itensOrcamento.filter(item => item.id !== id);
-                renderizarItensOrcamento();
+                recalcularTodosItens(); // Recalcula ao remover item
             } else {
                 const key = tipo === 'bordado' ? 'bordados' : `${tipo}Estampas`;
                 estado.configItemAtual[key] = estado.configItemAtual[key].filter(e => e.id !== id);
@@ -499,13 +536,10 @@ function setupEventListeners() {
                 return;
             }
             const itemParaAdicionar = JSON.parse(JSON.stringify(estado.configItemAtual));
-            const { precoUnit, precoTotal } = calcularPrecoItem(itemParaAdicionar);
             itemParaAdicionar.id = Date.now();
-            itemParaAdicionar.precoUnit = precoUnit;
-            itemParaAdicionar.precoTotal = precoTotal;
             
             estado.itensOrcamento.push(itemParaAdicionar);
-            renderizarItensOrcamento();
+            recalcularTodosItens(); // Recalcula ao adicionar item
             resetarConfigItem();
         }
     });
@@ -573,6 +607,12 @@ function setupEventListeners() {
             }
             atualizarDisplayPrecoConfig();
         });
+    });
+
+    // Event Listener para o Toggle de Desconto Global
+    el.descontoGlobalToggle.addEventListener('change', (e) => {
+        estado.usarDescontoGlobal = e.target.checked;
+        recalcularTodosItens();
     });
 
     el.btnGerarPdf.addEventListener('click', () => manipularPDF('download'));
@@ -790,7 +830,10 @@ async function criarDocumentoPDF() {
     doc.text(formatarMoeda(totalGeral), 196, finalY, { align: 'right' });
     finalY += 15;
     
-    desenharRodapePDF(doc, finalY);
+    // Verifica se deve incluir as informações adicionais
+    if (el.infoAdicionaisToggle.checked) {
+        desenharRodapePDF(doc, finalY);
+    }
 
     return doc;
 }
