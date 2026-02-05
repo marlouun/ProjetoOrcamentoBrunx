@@ -143,7 +143,7 @@ function calcularSilk(qtd, cores) {
 // --- ESTADO DA APLICAÇÃO ---
 const getEstadoInicialItem = () => ({
     produtoId: null,
-    nomeProdutoPersonalizado: '', // Novo campo para nome personalizado
+    nomeProdutoPersonalizado: '',
     quantidade: 12,
     temSilk: false,
     temDtf: false,
@@ -152,6 +152,7 @@ const getEstadoInicialItem = () => ({
     dtfEstampas: [],
     bordados: [],
     imagens: [],
+    tituloReferencia: '',
     manual: false,
     valorAdicional: 0,
     precoManual: 0,
@@ -201,6 +202,7 @@ const el = {
     dropZone: document.getElementById('dropZone'),
     uploadImagens: document.getElementById('uploadImagens'),
     previewArea: document.getElementById('previewArea'),
+    tituloReferencia: document.getElementById('tituloReferencia'),
     precoPecaDisplay: document.getElementById('precoPecaDisplay'),
     modoManualToggle: document.getElementById('modoManualToggle'),
     areaCalculoAutomatico: document.getElementById('areaCalculoAutomatico'),
@@ -385,10 +387,10 @@ function preencherFormularioComItem(item) {
     el.dtfToggle.checked = item.temDtf;
     el.bordadoToggle.checked = item.temBordado;
 
-    // Tratamento para valores zero/vazio
     el.valorAdicional.value = item.valorAdicional || '';
     el.precoManual.value = item.precoManual || '';
     el.precoBasePersonalizado.value = item.precoBasePersonalizado || '';
+    el.tituloReferencia.value = item.tituloReferencia || '';
     
     el.modoManualToggle.checked = item.manual;
     el.descricaoAdicional.value = item.descricaoAdicional;
@@ -465,6 +467,7 @@ function resetarConfigItem() {
     el.precoBasePersonalizadoToggle.checked = false;
     el.precoBasePersonalizadoContainer.classList.add('hidden');
     el.precoBasePersonalizado.value = '';
+    el.tituloReferencia.value = '';
     el.opcoesSilk.classList.add('hidden');
     el.opcoesDtf.classList.add('hidden');
     el.opcoesBordado.classList.add('hidden');
@@ -478,6 +481,27 @@ function resetarConfigItem() {
 
 // --- MANIPULADORES DE EVENTOS ---
 function setupEventListeners() {
+    // Paste Event Listener (Ctrl+V)
+    document.addEventListener('paste', (e) => {
+        const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+        const files = [];
+        let hasImage = false;
+
+        for (let index in items) {
+            const item = items[index];
+            if (item.kind === 'file' && item.type.startsWith('image/')) {
+                const blob = item.getAsFile();
+                files.push(blob);
+                hasImage = true;
+            }
+        }
+
+        if (hasImage) {
+            e.preventDefault(); // Prevent pasting the image filename into a text input if one is focused
+            processarArquivos(files);
+        }
+    });
+
     el.produtoSearch.addEventListener('input', () => {
         const texto = el.produtoSearch.value;
         atualizarListaProdutos(texto);
@@ -610,7 +634,8 @@ function setupEventListeners() {
         'bordadoPreco': 'bordadoPreco',
         'silkToggle': 'temSilk',
         'dtfToggle': 'temDtf',
-        'bordadoToggle': 'temBordado'
+        'bordadoToggle': 'temBordado',
+        'tituloReferencia': 'tituloReferencia'
     };
 
     Object.keys(propMap).forEach(key => {
@@ -623,8 +648,6 @@ function setupEventListeners() {
             if (element.type === 'checkbox') {
                 value = e.target.checked;
             } else if (element.type === 'number') {
-                // Se estiver vazio, salva como string vazia ou 0, dependendo da lógica, 
-                // mas aqui vamos manter o valor do input para não quebrar a UX de apagar tudo
                 value = e.target.value === '' ? '' : Number(e.target.value);
             } else {
                 value = e.target.value;
@@ -863,7 +886,16 @@ async function criarDocumentoPDF() {
 
         if (item.imagens.length > 0) {
             if (finalY > 230) { doc.addPage(); finalY = 20; }
-            doc.text('Referências do Item:', 14, finalY);
+            
+            // Adiciona o título da referência se existir
+            if (item.tituloReferencia) {
+                doc.setFont(undefined, 'bold');
+                doc.text(`Referências do Item: ${item.tituloReferencia}`, 14, finalY);
+                doc.setFont(undefined, 'normal');
+            } else {
+                doc.text('Referências do Item:', 14, finalY);
+            }
+
             finalY += 6;
             let currentX = 14;
             item.imagens.forEach(imgData => {
