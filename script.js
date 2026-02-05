@@ -98,6 +98,16 @@ const produtos = [
 
 const precosDTF = { "PP": 1.00, "P": 2.50, "M": 6.00, "G": 8.00, "GG": 14.00, "XG": 16.00, "XGG": 18.00 };
 
+const descricoesDTF = {
+    "PP": "até 5cm",
+    "P": "até 10cm",
+    "M": "até 20cm",
+    "G": "até 30cm",
+    "GG": "até 40cm",
+    "XG": "até 50cm",
+    "XGG": "Acima de 50cm"
+};
+
 // --- DADOS SILK (Transcrito da Imagem: 6 Tabelas de Preço) ---
 // Chave = Quantidade Mínima | Valor = Lista de preços para 1 até 10 cores
 const tabelaSilk = {
@@ -312,7 +322,15 @@ function renderizarEstampas(tipo) {
         listaEl.innerHTML = `<p class="empty-state-small">Nenhum(a) ${tipo} adicionado(a).</p>`;
     } else {
         estampas.forEach(estampa => {
-            const desc = tipo === 'silk' ? `${estampa.cores} Cores` : (tipo === 'dtf' ? `Tamanho ${estampa.tamanho}` : formatarMoeda(estampa.preco));
+            let desc;
+            if (tipo === 'silk') {
+                desc = `${estampa.cores} Cores`;
+            } else if (tipo === 'dtf') {
+                desc = descricoesDTF[estampa.tamanho] || estampa.tamanho;
+            } else {
+                desc = formatarMoeda(estampa.preco);
+            }
+            
             const div = document.createElement('div');
             div.className = 'estampa-adicionada';
             div.innerHTML = `
@@ -776,7 +794,7 @@ function getMetodoDesc(item) {
             acc[e.tamanho] = (acc[e.tamanho] || 0) + 1;
             return acc;
         }, {});
-        metodos.push(`DTF (${Object.entries(contagem).map(([k, q]) => `${q}x ${k}`).join(', ')})`);
+        metodos.push(`DTF (${Object.entries(contagem).map(([k, q]) => `${q}x ${descricoesDTF[k] || k}`).join(', ')})`);
     }
     if (item.temBordado && item.bordados.length > 0) {
         const totalBordado = item.bordados.reduce((total, b) => total + b.preco, 0);
