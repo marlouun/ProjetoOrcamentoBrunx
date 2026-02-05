@@ -154,7 +154,7 @@ function calcularSilk(qtd, cores) {
 const getEstadoInicialItem = () => ({
     produtoId: null,
     nomeProdutoPersonalizado: '',
-    quantidade: 12,
+    quantidade: '', // Alterado de 12 para vazio
     temSilk: false,
     temDtf: false,
     temBordado: false,
@@ -178,6 +178,8 @@ let estado = {
     logoBase64: null,
     usarDescontoGlobal: false,
 };
+
+let currentFocus = -1; // Variável para rastrear o item focado na lista
 
 // --- ELEMENTOS DO DOM ---
 const el = {
@@ -471,7 +473,7 @@ function salvarItemEditado() {
 function resetarConfigItem() {
     estado.configItemAtual = getEstadoInicialItem();
     el.produtoSearch.value = '';
-    el.quantidade.value = 12;
+    el.quantidade.value = ''; // Alterado de 12 para vazio
     
     el.silkToggle.checked = false;
     el.dtfToggle.checked = false;
@@ -499,6 +501,82 @@ function resetarConfigItem() {
 
 // --- MANIPULADORES DE EVENTOS ---
 function setupEventListeners() {
+    // Navegação com Teclado
+    document.addEventListener('keydown', (e) => {
+        // Se a lista de produtos estiver visível, navega nela
+        if (!el.produtoList.classList.contains('hidden')) {
+            const items = el.produtoList.querySelectorAll('div');
+            if (e.key === 'ArrowDown') {
+                currentFocus++;
+                addActive(items);
+                e.preventDefault();
+                return;
+            } else if (e.key === 'ArrowUp') {
+                currentFocus--;
+                addActive(items);
+                e.preventDefault();
+                return;
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (currentFocus > -1) {
+                    if (items[currentFocus]) items[currentFocus].click();
+                } else {
+                    // Se nada selecionado, fecha a lista (o comportamento padrão do Enter vai mover o foco)
+                    el.produtoList.classList.add('hidden');
+                }
+                return;
+            }
+        }
+
+        // Enter: Próximo Campo
+        if (e.key === 'Enter') {
+            if (e.target.tagName === 'TEXTAREA') return;
+            // Se estiver no campo de busca e a lista estiver oculta, permite o Enter normal (navegação)
+            
+            e.preventDefault();
+            
+            const formElements = Array.from(document.querySelectorAll('input, select, button'));
+            const visibleElements = formElements.filter(elem => {
+                return elem.offsetParent !== null && 
+                       !elem.disabled && 
+                       elem.type !== 'file' && 
+                       !elem.classList.contains('remover-item') && 
+                       !elem.classList.contains('remove-img-btn');
+            });
+
+            const currentIndex = visibleElements.indexOf(e.target);
+            if (currentIndex > -1 && currentIndex < visibleElements.length - 1) {
+                visibleElements[currentIndex + 1].focus();
+            }
+        }
+        // Escape: Campo Anterior ou Fechar UI
+        else if (e.key === 'Escape') {
+            if (!el.pdfPreviewModal.classList.contains('hidden')) {
+                el.closePreviewModal.click();
+                return;
+            }
+            if (!el.produtoList.classList.contains('hidden')) {
+                el.produtoList.classList.add('hidden');
+                return;
+            }
+
+            const formElements = Array.from(document.querySelectorAll('input, select, button'));
+            const visibleElements = formElements.filter(elem => {
+                return elem.offsetParent !== null && 
+                       !elem.disabled && 
+                       elem.type !== 'file' && 
+                       !elem.classList.contains('remover-item') && 
+                       !elem.classList.contains('remove-img-btn');
+            });
+
+            const currentIndex = visibleElements.indexOf(e.target);
+            if (currentIndex > 0) {
+                e.preventDefault();
+                visibleElements[currentIndex - 1].focus();
+            }
+        }
+    });
+
     // Paste Event Listener (Ctrl+V)
     document.addEventListener('paste', (e) => {
         const items = (e.clipboardData || e.originalEvent.clipboardData).items;
@@ -520,8 +598,29 @@ function setupEventListeners() {
         }
     });
 
+    // Capitalize Cliente Nome
+    el.clienteNome.addEventListener('input', (e) => {
+        const words = e.target.value.split(' ');
+        const capitalizedWords = words.map(word => {
+            return word.charAt(0).toUpperCase() + word.slice(1);
+        });
+        // Apenas atualiza se houver mudança real para evitar problemas com cursor
+        const newValue = capitalizedWords.join(' ');
+        if (e.target.value !== newValue) {
+             // Salva a posição do cursor
+            const start = e.target.selectionStart;
+            const end = e.target.selectionEnd;
+            
+            e.target.value = newValue;
+            
+            // Restaura a posição do cursor (aproximada)
+            e.target.setSelectionRange(start, end);
+        }
+    });
+
     el.produtoSearch.addEventListener('input', () => {
         const texto = el.produtoSearch.value;
+        currentFocus = -1; // Reseta o foco ao digitar
         atualizarListaProdutos(texto);
         
         // Se o usuário está digitando, assumimos que é um produto personalizado até que ele selecione um da lista
@@ -715,6 +814,22 @@ function setupEventListeners() {
         el.pdfPreviewFrame.removeAttribute('data-object-url');
         el.pdfPreviewModal.classList.add('hidden');
     });
+}
+
+function addActive(items) {
+    if (!items) return false;
+    removeActive(items);
+    if (currentFocus >= items.length) currentFocus = 0;
+    if (currentFocus < 0) currentFocus = (items.length - 1);
+    items[currentFocus].classList.add("autocomplete-active");
+    // Scroll para o item ativo se necessário
+    items[currentFocus].scrollIntoView({ block: 'nearest' });
+}
+
+function removeActive(items) {
+    for (let i = 0; i < items.length; i++) {
+        items[i].classList.remove("autocomplete-active");
+    }
 }
 
 function atualizarListaProdutos(filtro = '') {

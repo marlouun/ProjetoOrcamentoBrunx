@@ -76,6 +76,43 @@ input:focus, select:focus {
     outline: none;
 }
 
+/* Autocomplete */
+.autocomplete { position: relative; display: inline-block; width: 100%; }
+.autocomplete-items {
+    position: absolute;
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+    border-top: none;
+    z-index: 99;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background-color: var(--card-bg);
+    border-radius: 0 0 var(--border-radius) var(--border-radius);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    max-height: 250px;
+    overflow-y: auto;
+}
+.autocomplete-items div {
+    padding: 12px;
+    cursor: pointer;
+    background-color: var(--card-bg);
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-color);
+    transition: background-color 0.2s;
+}
+.autocomplete-items div:hover {
+    background-color: #333;
+}
+.autocomplete-items div.autocomplete-active {
+    background-color: #444;
+}
+.autocomplete-items div:last-child {
+    border-bottom: none;
+    border-radius: 0 0 var(--border-radius) var(--border-radius);
+}
+
+
 .row { display: flex; gap: 1.5rem; align-items: flex-end; }
 .row .form-group { flex: 1; margin-bottom: 0; }
 
@@ -94,9 +131,40 @@ input:focus, select:focus {
 .divider { height: 1px; background: var(--border-color); margin: 2rem 0; }
 small { display: block; margin-top: 0.5rem; color: var(--text-muted); font-size: 0.875rem; }
 
-.checkbox-group { display: flex; align-items: center; gap: 0.5rem; }
-.checkbox-group input { width: auto; }
-.checkbox-group label { margin-bottom: 0; cursor: pointer; font-weight: 400; color: var(--text-color); }
+/* Checkbox Styling */
+.checkbox-group { display: flex; align-items: center; gap: 0.75rem; }
+.checkbox-group input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--bg-color);
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s ease;
+}
+.checkbox-group input[type="checkbox"]:checked {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+.checkbox-group input[type="checkbox"]:checked::after {
+    content: '';
+    position: absolute;
+    left: 7px;
+    top: 3px;
+    width: 6px;
+    height: 12px;
+    border: solid var(--secondary-color);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+.checkbox-group input[type="checkbox"]:focus {
+    box-shadow: 0 0 0 3px rgba(255,255,255,.2);
+    border-color: var(--primary-color);
+}
+.checkbox-group label { margin-bottom: 0; cursor: pointer; font-weight: 500; color: var(--text-color); font-size: 1rem; }
 .mt-3 { margin-top: 1.5rem; }
 
 /* Personalização */
@@ -188,6 +256,14 @@ small { display: block; margin-top: 0.5rem; color: var(--text-muted); font-size:
 #itensContainer .empty-state, .estampas-list .empty-state-small { color: var(--text-muted); text-align: center; padding: 2rem 0; }
 .estampas-list .empty-state-small { padding: 1rem 0; font-size: 0.9rem; }
 
+/* Espaçamento para a lista de estampas */
+.estampas-list {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem; /* Adicionado gap */
+}
+
 .item-adicionado, .estampa-adicionada {
     display: flex;
     justify-content: space-between;
@@ -198,7 +274,7 @@ small { display: block; margin-top: 0.5rem; color: var(--text-muted); font-size:
     margin-bottom: 0.75rem;
     gap: 1rem;
 }
-.estampa-adicionada { padding: 0.5rem 1rem; background-color: var(--bg-color); }
+.estampa-adicionada { padding: 0.5rem 1rem; background-color: var(--bg-color); margin-bottom: 0; /* Remove margin-bottom individual pois usamos gap no container */ }
 .item-adicionado .info, .estampa-adicionada .info { flex-grow: 1; }
 .item-adicionado .info strong { display: block; font-size: 1.05rem; font-weight: 600; color: var(--primary-color); }
 .item-adicionado .info span { font-size: 0.9rem; color: var(--text-muted); }
@@ -295,7 +371,7 @@ small { display: block; margin-top: 0.5rem; color: var(--text-muted); font-size:
 }
 .modal-content {
     background-color: var(--card-bg); padding: 1.5rem; border-radius: var(--border-radius);
-    width: 90%; max-width: 900px; height: 90%;
+    width: 95%; max-width: 1200px; height: 95%; /* Aumentado */
     display: flex; flex-direction: column; border: 1px solid var(--border-color);
 }
 .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1rem; }
