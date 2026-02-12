@@ -48,10 +48,14 @@
                 <input type="text" id="produtoSearch" placeholder="Digite para buscar ou criar novo...">
                 <div id="produtoList" class="autocomplete-items hidden"></div>
             </div>
-            <div class="form-group">
+            <div id="quantidadeContainer" class="form-group">
                 <label>Quantidade de Peças</label>
                 <input type="number" id="quantidade" value="12" min="1">
             </div>
+        </div>
+        <div class="form-group checkbox-group mt-3">
+            <input type="checkbox" id="unitPriceOnlyToggle">
+            <label for="unitPriceOnlyToggle">Incluir somente valor unitário (sem quantidade)</label>
         </div>
         <div class="price-display" id="precoPecaDisplay">Preço Unit. Peça: R$ 0,00</div>
 

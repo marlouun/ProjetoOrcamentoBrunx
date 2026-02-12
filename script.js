@@ -190,6 +190,7 @@ const getEstadoInicialItem = () => ({
     produtoId: null,
     nomeProdutoPersonalizado: '',
     quantidade: '',
+    unitPriceOnly: false, // NOVO
     temSilk: false,
     temDtf: false,
     temBordado: false,
@@ -223,6 +224,8 @@ const el = {
     produtoSearch: document.getElementById('produtoSearch'),
     produtoList: document.getElementById('produtoList'),
     quantidade: document.getElementById('quantidade'),
+    quantidadeContainer: document.getElementById('quantidadeContainer'), // NOVO
+    unitPriceOnlyToggle: document.getElementById('unitPriceOnlyToggle'), // NOVO
     precoBasePersonalizadoToggle: document.getElementById('precoBasePersonalizadoToggle'),
     precoBasePersonalizadoContainer: document.getElementById('precoBasePersonalizadoContainer'),
     precoBasePersonalizado: document.getElementById('precoBasePersonalizado'),
@@ -283,7 +286,7 @@ function getNomeProduto(item) {
 
 // --- LÓGICA DE CÁLCULO ---
 function calcularPrecoItem(item, quantidadeTotalOverride = null) {
-    const quantidade = parseInt(item.quantidade) || 0;
+    const quantidade = item.unitPriceOnly ? 1 : (parseInt(item.quantidade) || 0); // MODIFICADO
     const precoManual = parseFloat(item.precoManual) || 0;
     const precoBasePersonalizado = parseFloat(item.precoBasePersonalizado) || 0;
     const valorAdicional = parseFloat(item.valorAdicional) || 0;
@@ -291,7 +294,8 @@ function calcularPrecoItem(item, quantidadeTotalOverride = null) {
 
     if (item.manual) {
         const precoUnit = precoManual;
-        return { precoUnit, precoTotal: precoUnit * quantidade };
+        const precoTotal = item.unitPriceOnly ? precoUnit : precoUnit * quantidade; // MODIFICADO
+        return { precoUnit, precoTotal };
     }
 
     let precoBase = 0;
@@ -318,11 +322,12 @@ function calcularPrecoItem(item, quantidadeTotalOverride = null) {
     }
 
     const precoUnit = precoBase + custoEstampa + valorAdicional;
-    return { precoUnit, precoTotal: precoUnit * quantidade };
+    const precoTotal = item.unitPriceOnly ? precoUnit : precoUnit * quantidade; // MODIFICADO
+    return { precoUnit, precoTotal };
 }
 
 function recalcularTodosItens() {
-    const totalPecas = estado.itensOrcamento.reduce((sum, item) => sum + (parseInt(item.quantidade) || 0), 0);
+    const totalPecas = estado.itensOrcamento.reduce((sum, item) => sum + (item.unitPriceOnly ? 0 : (parseInt(item.quantidade) || 0)), 0); // MODIFICADO
     const qtdParaCalculo = estado.usarDescontoGlobal ? totalPecas : null;
 
     estado.itensOrcamento = estado.itensOrcamento.map(item => {
@@ -394,18 +399,27 @@ function renderizarItensOrcamento() {
         estado.itensOrcamento.forEach(item => {
             const div = document.createElement('div');
             div.className = 'item-adicionado';
+
+            const infoPrincipal = item.unitPriceOnly
+                ? `<span>Valor Unitário</span>`
+                : `<span>${item.quantidade} un. | ${getMetodoDesc(item)}</span>`;
+
+            const precoPrincipal = item.unitPriceOnly
+                ? `<strong>${formatarMoeda(item.precoUnit)}</strong>`
+                : `<strong>${formatarMoeda(item.precoTotal)}</strong><span>(${formatarMoeda(item.precoUnit)} / un.)</span>`;
+
             div.innerHTML = `
                 <div class="info">
                     <strong>${getNomeProduto(item)}</strong>
-                    <span>${item.quantidade} un. | ${getMetodoDesc(item)}</span>
+                    ${infoPrincipal}
                 </div>
                 <div class="preco">
-                    <strong>${formatarMoeda(item.precoTotal)}</strong>
-                    <span>(${formatarMoeda(item.precoUnit)} / un.)</span>
+                    ${precoPrincipal}
                 </div>
                 <div class="item-actions">
-                    <button class="editar-item" data-id="${item.id}">✏️</button>
-                    <button class="remover-item" data-id="${item.id}" data-tipo="item">✖️</button>
+                    <button class="duplicar-item" data-id="${item.id}" title="Duplicar Item">📄</button>
+                    <button class="editar-item" data-id="${item.id}" title="Editar Item">✏️</button>
+                    <button class="remover-item" data-id="${item.id}" data-tipo="item" title="Remover Item">✖️</button>
                 </div>
             `;
             el.itensContainer.appendChild(div);
@@ -430,6 +444,8 @@ function preencherFormularioComItem(item) {
     }
 
     el.quantidade.value = item.quantidade;
+    el.unitPriceOnlyToggle.checked = item.unitPriceOnly; // NOVO
+    el.quantidadeContainer.classList.toggle('hidden', item.unitPriceOnly); // NOVO
     el.silkToggle.checked = item.temSilk;
     el.dtfToggle.checked = item.temDtf;
     el.bordadoToggle.checked = item.temBordado;
@@ -486,7 +502,9 @@ function salvarItemEditado() {
 function resetarConfigItem() {
     estado.configItemAtual = getEstadoInicialItem();
     el.produtoSearch.value = '';
-    el.quantidade.value = '';
+    el.quantidade.value = '12';
+    el.unitPriceOnlyToggle.checked = false; // NOVO
+    el.quantidadeContainer.classList.remove('hidden'); // NOVO
     el.silkToggle.checked = false;
     el.dtfToggle.checked = false;
     el.bordadoToggle.checked = false;
@@ -634,6 +652,16 @@ function setupEventListeners() {
         if (target.closest('.editar-item')) {
             entrarModoEdicao(Number(target.closest('.editar-item').dataset.id));
         }
+        if (target.closest('.duplicar-item')) { // NOVO
+            const id = Number(target.closest('.duplicar-item').dataset.id);
+            const itemParaDuplicar = estado.itensOrcamento.find(item => item.id === id);
+            if (itemParaDuplicar) {
+                const itemDuplicado = JSON.parse(JSON.stringify(itemParaDuplicar));
+                itemDuplicado.id = Date.now();
+                estado.itensOrcamento.push(itemDuplicado);
+                recalcularTodosItens();
+            }
+        }
         if (target.closest('.remove-img-btn')) {
             estado.configItemAtual.imagens.splice(Number(target.closest('.remove-img-btn').dataset.index), 1);
             renderizarImagens();
@@ -697,7 +725,8 @@ function setupEventListeners() {
         'modoManualToggle': 'manual', 'descricaoAdicional': 'descricaoAdicional',
         'precoBasePersonalizadoToggle': 'usarPrecoBasePersonalizado', 'precoBasePersonalizado': 'precoBasePersonalizado',
         'bordadoPreco': 'bordadoPreco', 'silkToggle': 'temSilk', 'dtfToggle': 'temDtf',
-        'bordadoToggle': 'temBordado', 'tituloReferencia': 'tituloReferencia'
+        'bordadoToggle': 'temBordado', 'tituloReferencia': 'tituloReferencia',
+        'unitPriceOnlyToggle': 'unitPriceOnly' // NOVO
     };
 
     Object.keys(propMap).forEach(key => {
@@ -713,6 +742,9 @@ function setupEventListeners() {
                     estado.configItemAtual.quantidade = 30;
                     el.quantidade.value = 30;
                 }
+            }
+            if (key === 'unitPriceOnlyToggle') { // NOVO
+                el.quantidadeContainer.classList.toggle('hidden', value);
             }
             if (key === 'dtfToggle') el.opcoesDtf.classList.toggle('hidden', !value);
             if (key === 'bordadoToggle') el.opcoesBordado.classList.toggle('hidden', !value);
@@ -877,7 +909,11 @@ async function criarDocumentoPDF() {
     let finalY = 50;
     for (const item of estado.itensOrcamento) {
         if (finalY > 250) { doc.addPage(); finalY = 20; }
-        const tableBody = [[ getNomeProduto(item), item.quantidade, getMetodoDesc(item), formatarMoeda(item.precoUnit), formatarMoeda(item.precoTotal) ]];
+        
+        const quantidade = item.unitPriceOnly ? 'N/A' : item.quantidade;
+        const total = item.unitPriceOnly ? formatarMoeda(item.precoUnit) : formatarMoeda(item.precoTotal);
+        
+        const tableBody = [[ getNomeProduto(item), quantidade, getMetodoDesc(item), formatarMoeda(item.precoUnit), total ]];
         if (item.descricaoAdicional) {
             tableBody.push([{ content: `Obs: ${item.descricaoAdicional}`, colSpan: 5, styles: { fontStyle: 'italic', textColor: [100, 100, 100] } }]);
         }
