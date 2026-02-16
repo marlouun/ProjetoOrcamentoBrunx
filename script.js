@@ -1,24 +1,24 @@
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+// Importa as funções necessárias da CDN do Firebase
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+import { getFirestore, collection, addDoc, getDocs, query, where, orderBy, limit, serverTimestamp, doc, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// --- CONFIGURAÇÃO DO FIREBASE ---
 const firebaseConfig = {
     apiKey: "AIzaSyBNBO69CsNxSFQaWNp0BivjcZ8B0Eb-ihA",
     authDomain: "orcamento-brunx.firebaseapp.com",
     projectId: "orcamento-brunx",
-    storageBucket: "orcamento-brunx.firebasestorage.app",
+    storageBucket: "orcamento-brunx.appspot.com",
     messagingSenderId: "986116498061",
     appId: "1:986116498061:web:424faffd52362772af78c4",
     measurementId: "G-7S88K3YT1H"
 };
 
-// Initialize Firebase
+// --- INICIALIZAÇÃO DO FIREBASE ---
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const provider = new GoogleAuthProvider();
 
 // --- CONFIGURAÇÃO DA PLANILHA ---
 const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTiqhofGiM6PFgYrvy9D49mc8f_CVkFTkcewswl6jVLcmi6_X2laVJQUxYMAEa16HFjywevKU8CEfRx/pub?output=csv';
@@ -40,12 +40,16 @@ let estado = {
     editandoItemId: null,
     logoBase64: null,
     usarDescontoGlobal: false,
-    currentUser: null, // Novo: para guardar o usuário logado
+    currentUser: null,
 };
+let currentFocus = -1;
 
-// --- ELEMENTOS DO DOM (Adicionados para o Firebase) ---
+// --- ELEMENTOS DO DOM ---
 const el = {
-    // ... (seus elementos existentes)
+    logo: document.getElementById('logo'),
+    themeToggle: document.getElementById('theme-toggle'),
+    themeIconMoon: document.getElementById('theme-icon-moon'),
+    themeIconSun: document.getElementById('theme-icon-sun'),
     authContainer: document.getElementById('authContainer'),
     userInfo: document.getElementById('userInfo'),
     userName: document.getElementById('userName'),
@@ -54,7 +58,6 @@ const el = {
     orcamentosSalvosCard: document.getElementById('orcamentosSalvosCard'),
     listaOrcamentos: document.getElementById('listaOrcamentos'),
     btnSalvarOrcamento: document.getElementById('btnSalvarOrcamento'),
-    // ... (resto dos seus elementos)
     clienteNome: document.getElementById('clienteNome'),
     configFormTitle: document.getElementById('configFormTitle'),
     produtoSearch: document.getElementById('produtoSearch'),
@@ -105,37 +108,53 @@ const el = {
     infoAdicionaisToggle: document.getElementById('infoAdicionaisToggle'),
 };
 
+// --- FUNÇÕES DE TEMA ---
+function applyTheme(theme) {
+    if (theme === 'light') {
+        document.body.classList.add('light-theme');
+        el.logo.src = 'images/LogoBrunx.png';
+        el.themeIconMoon.classList.add('hidden');
+        el.themeIconSun.classList.remove('hidden');
+    } else {
+        document.body.classList.remove('light-theme');
+        el.logo.src = 'images/LogoBrunxBranca.png';
+        el.themeIconMoon.classList.remove('hidden');
+        el.themeIconSun.classList.add('hidden');
+    }
+}
+
+function toggleTheme() {
+    const currentTheme = document.body.classList.contains('light-theme') ? 'light' : 'dark';
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    localStorage.setItem('theme', newTheme);
+    applyTheme(newTheme);
+}
+
 
 // --- FUNÇÕES DE AUTENTICAÇÃO ---
 function loginComGoogle() {
-    auth.signInWithPopup(provider).catch(error => {
+    signInWithPopup(auth, provider).catch(error => {
         console.error("Erro durante o login com Google:", error);
         alert("Não foi possível fazer o login. Verifique o console para mais detalhes.");
     });
 }
 
-function logout() {
-    auth.signOut().catch(error => {
+function fazerLogout() {
+    signOut(auth).catch(error => {
         console.error("Erro ao fazer logout:", error);
     });
 }
 
-function gerenciarEstadoAuth(user) {
+async function gerenciarEstadoAuth(user) {
     if (user) {
-        // Usuário está logado
-        estado.currentUser = {
-            uid: user.uid,
-            displayName: user.displayName,
-            email: user.email
-        };
+        estado.currentUser = { uid: user.uid, displayName: user.displayName, email: user.email };
         el.userInfo.classList.remove('hidden');
         el.btnLogin.classList.add('hidden');
-        el.userName.textContent = user.displayName.split(' ')[0]; // Mostra só o primeiro nome
+        el.userName.textContent = user.displayName.split(' ')[0];
         el.orcamentosSalvosCard.classList.remove('hidden');
         el.btnSalvarOrcamento.classList.remove('hidden');
-        carregarOrcamentosDoFirestore();
+        await carregarOrcamentosDoFirestore();
     } else {
-        // Usuário está deslogado
         estado.currentUser = null;
         el.userInfo.classList.add('hidden');
         el.btnLogin.classList.remove('hidden');
@@ -145,39 +164,24 @@ function gerenciarEstadoAuth(user) {
     }
 }
 
-// --- FUNÇÕES DO FIRESTORE (BANCO DE DADOS) ---
-
+// --- FUNÇÕES DO FIRESTORE ---
 async function salvarOrcamentoNoFirestore() {
-    if (!estado.currentUser) {
-        alert("Você precisa estar logado para salvar um orçamento.");
-        return;
-    }
-    if (estado.itensOrcamento.length === 0) {
-        alert("Adicione pelo menos um item antes de salvar.");
-        return;
-    }
-
+    if (!estado.currentUser) return alert("Você precisa estar logado para salvar um orçamento.");
+    if (estado.itensOrcamento.length === 0) return alert("Adicione pelo menos um item antes de salvar.");
     const nomeCliente = el.clienteNome.value.trim();
-    if (!nomeCliente) {
-        alert("Por favor, insira um nome para o cliente/orçamento antes de salvar.");
-        return;
-    }
+    if (!nomeCliente) return alert("Por favor, insira um nome para o cliente/orçamento antes de salvar.");
 
-    // Prepara o objeto para salvar, removendo dados de imagem grandes
     const orcamentoParaSalvar = {
         clienteNome: nomeCliente,
-        itens: estado.itensOrcamento.map(item => ({
-            ...item,
-            imagens: [] // Não salva imagens no Firestore para economizar espaço
-        })),
-        criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+        itens: estado.itensOrcamento.map(item => ({ ...item, imagens: [] })),
+        criadoEm: serverTimestamp(),
         userId: estado.currentUser.uid
     };
 
     try {
-        await db.collection('orcamentos').add(orcamentoParaSalvar);
+        await addDoc(collection(db, 'orcamentos'), orcamentoParaSalvar);
         alert(`Orçamento para "${nomeCliente}" salvo com sucesso!`);
-        carregarOrcamentosDoFirestore(); // Atualiza a lista
+        await carregarOrcamentosDoFirestore();
     } catch (error) {
         console.error("Erro ao salvar orçamento:", error);
         alert("Ocorreu um erro ao salvar. Tente novamente.");
@@ -186,21 +190,15 @@ async function salvarOrcamentoNoFirestore() {
 
 async function carregarOrcamentosDoFirestore() {
     if (!estado.currentUser) return;
-
     el.listaOrcamentos.innerHTML = '<p class="empty-state">Carregando...</p>';
-
     try {
-        const snapshot = await db.collection('orcamentos')
-            .where('userId', '==', estado.currentUser.uid)
-            .orderBy('criadoEm', 'desc')
-            .limit(20)
-            .get();
-
+        const q = query(collection(db, 'orcamentos'), where('userId', '==', estado.currentUser.uid), orderBy('criadoEm', 'desc'), limit(20));
+        const snapshot = await getDocs(q);
         if (snapshot.empty) {
             el.listaOrcamentos.innerHTML = '<p class="empty-state">Nenhum orçamento salvo encontrado.</p>';
             return;
         }
-
+        
         el.listaOrcamentos.innerHTML = '';
         snapshot.forEach(doc => {
             const orcamento = doc.data();
@@ -212,13 +210,15 @@ async function carregarOrcamentosDoFirestore() {
                     <span>${orcamento.itens.length} item(ns) - ${new Date(orcamento.criadoEm?.toDate()).toLocaleDateString()}</span>
                 </div>
                 <div class="actions">
-                    <button class="btn-carregar-orcamento" data-id="${doc.id}">Carregar</button>
-                    <button class="btn-deletar-orcamento" data-id="${doc.id}">Deletar</button>
-                </div>
-            `;
+                    <button class="btn-orcamento-action btn-carregar-orcamento" data-id="${doc.id}" title="Carregar Orçamento">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    </button>
+                    <button class="btn-orcamento-action btn-deletar-orcamento" data-id="${doc.id}" title="Deletar Orçamento">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                    </button>
+                </div>`;
             el.listaOrcamentos.appendChild(div);
         });
-
     } catch (error) {
         console.error("Erro ao carregar orçamentos:", error);
         el.listaOrcamentos.innerHTML = '<p class="empty-state">Erro ao carregar orçamentos.</p>';
@@ -227,26 +227,22 @@ async function carregarOrcamentosDoFirestore() {
 
 async function carregarOrcamentoEspecifico(orcamentoId) {
     try {
-        const doc = await db.collection('orcamentos').doc(orcamentoId).get();
-        if (!doc.exists) {
-            alert("Orçamento não encontrado.");
-            return;
+        const docRef = doc(db, 'orcamentos', orcamentoId);
+        const docSnap = await getDoc(docRef);
+        if (!docSnap.exists()) {
+            return alert("Orçamento não encontrado.");
         }
-        const orcamento = doc.data();
         
-        // Confirmação para não sobrescrever trabalho atual
-        if(estado.itensOrcamento.length > 0) {
-            if(!confirm("Isso irá substituir o orçamento atual. Deseja continuar?")) {
-                return;
-            }
+        const orcamento = docSnap.data();
+        if (estado.itensOrcamento.length > 0 && !confirm("Isso irá substituir o orçamento atual. Deseja continuar?")) {
+            return;
         }
 
         el.clienteNome.value = orcamento.clienteNome;
         estado.itensOrcamento = orcamento.itens;
         recalcularTodosItens();
-        sairModoEdicao(); // Garante que saia do modo de edição
+        sairModoEdicao();
         alert(`Orçamento para "${orcamento.clienteNome}" carregado.`);
-
     } catch (error) {
         console.error("Erro ao carregar orçamento específico:", error);
         alert("Erro ao carregar o orçamento.");
@@ -254,25 +250,20 @@ async function carregarOrcamentoEspecifico(orcamentoId) {
 }
 
 async function deletarOrcamento(orcamentoId) {
-    if (!confirm("Tem certeza que deseja deletar este orçamento? Esta ação não pode ser desfeita.")) {
-        return;
-    }
+    if (!confirm("Tem certeza que deseja deletar este orçamento? Esta ação não pode ser desfeita.")) return;
     try {
-        await db.collection('orcamentos').doc(orcamentoId).delete();
+        await deleteDoc(doc(db, 'orcamentos', orcamentoId));
         alert("Orçamento deletado com sucesso.");
-        carregarOrcamentosDoFirestore(); // Atualiza a lista
+        await carregarOrcamentosDoFirestore();
     } catch (error) {
         console.error("Erro ao deletar orçamento:", error);
         alert("Erro ao deletar o orçamento.");
     }
 }
 
-
-// --- FUNÇÕES DA PLANILHA (EXISTENTES) ---
+// --- FUNÇÕES DE LÓGICA DO ORÇAMENTO ---
 function limparPreco(valorString) { if (!valorString) return 0; let limpo = valorString.toString().replace("R$", "").replace(/\s/g, "").replace(",", "."); return parseFloat(limpo) || 0; }
 function carregarPlanilha() { el.produtoSearch.placeholder = "Carregando produtos..."; el.produtoSearch.disabled = true; Papa.parse(SHEET_URL, { download: true, header: true, complete: function(results) { const produtosDaPlanilha = results.data.filter(row => row["PRODUTO"] && row["PRODUTO"].trim() !== "").map((row, index) => ({ nome: row["PRODUTO"], p12: limparPreco(row["12 PEÇAS - 5%"]), p50: limparPreco(row["50 PEÇAS - 3%"]), p150: limparPreco(row["150 PEÇAS - 2%"]), id: index })); if (produtosDaPlanilha.length > 0) { produtos = produtosDaPlanilha; console.log("Produtos carregados da planilha com sucesso!"); } else { console.warn("A planilha foi lida, mas está vazia ou em formato incorreto. Usando dados locais."); } el.produtoSearch.placeholder = "Digite para buscar ou criar novo..."; el.produtoSearch.disabled = false; }, error: function(err) { console.error("Erro ao carregar a planilha. Usando dados locais como fallback.", err); el.produtoSearch.placeholder = "Digite para buscar ou criar novo..."; el.produtoSearch.disabled = false; } }); }
-
-// --- FUNÇÕES DE LÓGICA (EXISTENTES) ---
 function calcularSilk(qtd, cores) { if (qtd < 30) return 0; if (cores < 1) cores = 1; if (cores > 10) cores = 10; let tier = 30; if (qtd >= 250) tier = 250; else if (qtd >= 200) tier = 200; else if (qtd >= 150) tier = 150; else if (qtd >= 100) tier = 100; else if (qtd >= 50) tier = 50; return tabelaSilk[tier][cores - 1]; }
 function getEstadoInicialItem() { return { produtoId: null, nomeProdutoPersonalizado: '', quantidade: '', temSilk: false, temDtf: false, temBordado: false, silkEstampas: [], dtfEstampas: [], bordados: [], imagens: [], tituloReferencia: '', manual: false, valorAdicional: 0, precoManual: 0, descricaoAdicional: '', usarPrecoBasePersonalizado: false, precoBasePersonalizado: 0, }; }
 function formatarMoeda(valor) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor); }
@@ -281,43 +272,124 @@ function calcularPrecoItem(item, quantidadeTotalOverride = null) { const quantid
 function recalcularTodosItens() { const totalPecas = estado.itensOrcamento.reduce((sum, item) => sum + (parseInt(item.quantidade) || 0), 0); const qtdParaCalculo = estado.usarDescontoGlobal ? totalPecas : null; estado.itensOrcamento = estado.itensOrcamento.map(item => { const { precoUnit, precoTotal } = calcularPrecoItem(item, qtdParaCalculo); return { ...item, precoUnit, precoTotal }; }); renderizarItensOrcamento(); }
 function atualizarDisplayPrecoConfig() { const { precoUnit } = calcularPrecoItem(estado.configItemAtual); el.precoPecaDisplay.innerText = `Preço Unit. do Item Configurado: ${formatarMoeda(precoUnit)}`; }
 function renderizarEstampas(tipo) { const key = tipo === 'bordado' ? 'bordados' : `${tipo}Estampas`; const listaEl = el[`${tipo}List`]; const estampas = estado.configItemAtual[key]; if (!listaEl) return; listaEl.innerHTML = ''; if (estampas.length === 0) { listaEl.innerHTML = `<p class="empty-state-small">Nenhum(a) ${tipo} adicionado(a).</p>`; } else { estampas.forEach(estampa => { let desc; if (tipo === 'silk') { desc = `${estampa.cores} Cores`; } else if (tipo === 'dtf') { desc = descricoesDTF[estampa.tamanho] || estampa.tamanho; } else { desc = formatarMoeda(estampa.preco); } const div = document.createElement('div'); div.className = 'estampa-adicionada'; div.innerHTML = ` <span class="info">1x ${tipo === 'bordado' ? 'Bordado' : 'Estampa'} ${desc}</span> <button class="remover-item" data-id="${estampa.id}" data-tipo="${tipo}">✖️</button> `; listaEl.appendChild(div); }); } atualizarDisplayPrecoConfig(); }
-function renderizarImagens() { el.previewArea.innerHTML = ''; estado.configItemAtual.imagens.forEach((imgData, index) => { const container = document.createElement('div'); container.className = 'preview-img-container'; container.innerHTML = ` <img src="${imgData}" class="preview-img"> <button class="remove-img-btn" data-index="${index}">✖</button> `; el.previewArea.appendChild(container); }); }
-function renderizarItensOrcamento() { el.itensContainer.innerHTML = ''; if (estado.itensOrcamento.length === 0) { el.itensContainer.innerHTML = '<p class="empty-state">Nenhum item adicionado ainda.</p>'; } else { estado.itensOrcamento.forEach(item => { const div = document.createElement('div'); div.className = 'item-adicionado'; div.innerHTML = ` <div class="info"> <strong>${getNomeProduto(item)}</strong> <span>${item.quantidade} un. | ${getMetodoDesc(item)}</span> </div> <div class="preco"> <strong>${formatarMoeda(item.precoTotal)}</strong> <span>(${formatarMoeda(item.precoUnit)} / un.)</span> </div> <div class="item-actions"> <button class="editar-item" data-id="${item.id}">✏️</button> <button class="remover-item" data-id="${item.id}" data-tipo="item">✖️</button> </div> `; el.itensContainer.appendChild(div); }); } atualizarResumoTotal(); }
+function renderizarImagens() { el.previewArea.innerHTML = ''; estado.configItemAtual.imagens.forEach((imgData, index) => { const container = document.createElement('div'); container.className = 'preview-img-container'; container.innerHTML = ` <img src="${imgData}" class="preview-img" alt="Preview da imagem ${index + 1}"> <button class="remove-img-btn" data-index="${index}">✖</button> `; el.previewArea.appendChild(container); }); }
+function renderizarItensOrcamento() {
+    el.itensContainer.innerHTML = '';
+    if (estado.itensOrcamento.length === 0) {
+        el.itensContainer.innerHTML = '<p class="empty-state">Nenhum item adicionado ainda.</p>';
+    } else {
+        estado.itensOrcamento.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'item-adicionado';
+            div.innerHTML = `
+                <div class="info">
+                    <strong>${getNomeProduto(item)}</strong>
+                    <span>${item.quantidade} un. | ${getMetodoDesc(item)}</span>
+                </div>
+                <div class="preco">
+                    <strong>${formatarMoeda(item.precoTotal)}</strong>
+                    <span>(${formatarMoeda(item.precoUnit)} / un.)</span>
+                </div>
+                <div class="item-actions">
+                    <button class="item-action-btn duplicar-item" data-id="${item.id}" title="Duplicar Item">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                    </button>
+                    <button class="item-action-btn editar-item" data-id="${item.id}" title="Editar Item">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    </button>
+                    <button class="item-action-btn remover-item" data-id="${item.id}" data-tipo="item" title="Remover Item">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
+                </div>
+            `;
+            el.itensContainer.appendChild(div);
+        });
+    }
+    atualizarResumoTotal();
+}
 function atualizarResumoTotal() { const total = estado.itensOrcamento.reduce((sum, item) => sum + item.precoTotal, 0); el.totalPedido.textContent = formatarMoeda(total); }
 function preencherFormularioComItem(item) { estado.configItemAtual = JSON.parse(JSON.stringify(item)); if (item.produtoId !== null) { const produto = produtos.find(p => p.id === item.produtoId); el.produtoSearch.value = produto ? produto.nome : ''; } else { el.produtoSearch.value = item.nomeProdutoPersonalizado || ''; } el.quantidade.value = item.quantidade; el.silkToggle.checked = item.temSilk; el.dtfToggle.checked = item.temDtf; el.bordadoToggle.checked = item.temBordado; el.valorAdicional.value = item.valorAdicional || ''; el.precoManual.value = item.precoManual || ''; el.precoBasePersonalizado.value = item.precoBasePersonalizado || ''; el.tituloReferencia.value = item.tituloReferencia || ''; el.modoManualToggle.checked = item.manual; el.descricaoAdicional.value = item.descricaoAdicional; el.precoBasePersonalizadoToggle.checked = item.usarPrecoBasePersonalizado; el.opcoesSilk.classList.toggle('hidden', !item.temSilk); el.opcoesDtf.classList.toggle('hidden', !item.temDtf); el.opcoesBordado.classList.toggle('hidden', !item.temBordado); const manualOuAdicional = item.manual || item.valorAdicional > 0; el.descricaoAdicionalContainer.classList.toggle('hidden', !manualOuAdicional); el.areaCalculoAutomatico.classList.toggle('hidden', item.manual); el.areaCalculoManual.classList.toggle('hidden', !item.manual); el.precoBasePersonalizadoContainer.classList.toggle('hidden', !item.usarPrecoBasePersonalizado); renderizarEstampas('silk'); renderizarEstampas('dtf'); renderizarEstampas('bordado'); renderizarImagens(); atualizarDisplayPrecoConfig(); }
 function entrarModoEdicao(itemId) { const itemParaEditar = estado.itensOrcamento.find(item => item.id === itemId); if (!itemParaEditar) return; estado.editandoItemId = itemId; preencherFormularioComItem(itemParaEditar); el.configFormTitle.textContent = "2. Editando Item"; el.btnAdicionarItem.textContent = "Salvar Alterações"; el.btnCancelarEdicao.classList.remove('hidden'); window.scrollTo(0, el.configFormTitle.offsetTop); }
 function sairModoEdicao() { estado.editandoItemId = null; resetarConfigItem(); el.configFormTitle.textContent = "2. Configurar e Adicionar Item"; el.btnAdicionarItem.textContent = "Adicionar Item ao Orçamento"; el.btnCancelarEdicao.classList.add('hidden'); }
 function salvarItemEditado() { if (estado.editandoItemId === null) return; const index = estado.itensOrcamento.findIndex(item => item.id === estado.editandoItemId); if (index === -1) return; estado.itensOrcamento[index] = { ...estado.configItemAtual, id: estado.editandoItemId }; recalcularTodosItens(); sairModoEdicao(); }
 function resetarConfigItem() { estado.configItemAtual = getEstadoInicialItem(); el.produtoSearch.value = ''; el.quantidade.value = ''; el.silkToggle.checked = false; el.dtfToggle.checked = false; el.bordadoToggle.checked = false; el.valorAdicional.value = ''; el.precoManual.value = ''; el.modoManualToggle.checked = false; el.descricaoAdicional.value = ''; el.descricaoAdicionalContainer.classList.add('hidden'); el.precoBasePersonalizadoToggle.checked = false; el.precoBasePersonalizadoContainer.classList.add('hidden'); el.precoBasePersonalizado.value = ''; el.tituloReferencia.value = ''; el.opcoesSilk.classList.add('hidden'); el.opcoesDtf.classList.add('hidden'); el.opcoesBordado.classList.add('hidden'); el.previewArea.innerHTML = ''; el.uploadImagens.value = ''; renderizarEstampas('dtf'); renderizarEstampas('silk'); renderizarEstampas('bordado'); atualizarDisplayPrecoConfig(); }
+function duplicarItem(itemId) {
+    const itemParaDuplicar = estado.itensOrcamento.find(item => item.id === itemId);
+    if (!itemParaDuplicar) return;
 
-// --- MANIPULADORES DE EVENTOS ---
+    const itemDuplicado = JSON.parse(JSON.stringify(itemParaDuplicar));
+    itemDuplicado.id = Date.now();
+
+    const indexOriginal = estado.itensOrcamento.findIndex(item => item.id === itemId);
+    
+    if (indexOriginal !== -1) {
+        estado.itensOrcamento.splice(indexOriginal + 1, 0, itemDuplicado);
+    } else {
+        estado.itensOrcamento.push(itemDuplicado);
+    }
+
+    recalcularTodosItens();
+}
+
 function setupEventListeners() {
-    // ... (seus listeners existentes)
-
-    // Novos Listeners para Firebase
+    el.themeToggle.addEventListener('click', toggleTheme);
     el.btnLogin.addEventListener('click', loginComGoogle);
-    el.btnLogout.addEventListener('click', logout);
+    el.btnLogout.addEventListener('click', fazerLogout);
     el.btnSalvarOrcamento.addEventListener('click', salvarOrcamentoNoFirestore);
-
-    // Listener para cliques na lista de orçamentos salvos (delegação de evento)
-    el.listaOrcamentos.addEventListener('click', (e) => {
-        const target = e.target;
-        if (target.classList.contains('btn-carregar-orcamento')) {
-            const orcamentoId = target.dataset.id;
-            carregarOrcamentoEspecifico(orcamentoId);
-        }
-        if (target.classList.contains('btn-deletar-orcamento')) {
-            const orcamentoId = target.dataset.id;
-            deletarOrcamento(orcamentoId);
-        }
+    el.listaOrcamentos.addEventListener('click', async (e) => {
+        const target = e.target.closest('.btn-orcamento-action');
+        if (!target) return;
+        
+        const id = target.dataset.id;
+        if (target.classList.contains('btn-carregar-orcamento')) await carregarOrcamentoEspecifico(id);
+        if (target.classList.contains('btn-deletar-orcamento')) await deletarOrcamento(id);
     });
-
-    // ... (resto dos seus listeners)
+    
     document.addEventListener('keydown', (e) => { if (!el.produtoList.classList.contains('hidden')) { const items = el.produtoList.querySelectorAll('div'); if (e.key === 'ArrowDown') { currentFocus++; addActive(items); e.preventDefault(); return; } else if (e.key === 'ArrowUp') { currentFocus--; addActive(items); e.preventDefault(); return; } else if (e.key === 'Enter') { e.preventDefault(); if (currentFocus > -1) { if (items[currentFocus]) items[currentFocus].click(); } else { el.produtoList.classList.add('hidden'); } return; } } if (e.key === 'Enter') { if (e.target.tagName === 'TEXTAREA') return; e.preventDefault(); const formElements = Array.from(document.querySelectorAll('input, select, button')); const visibleElements = formElements.filter(elem => elem.offsetParent !== null && !elem.disabled && elem.type !== 'file' && !elem.classList.contains('remover-item') && !elem.classList.contains('remove-img-btn')); const currentIndex = visibleElements.indexOf(e.target); if (currentIndex > -1 && currentIndex < visibleElements.length - 1) { visibleElements[currentIndex + 1].focus(); } } else if (e.key === 'Escape') { if (!el.pdfPreviewModal.classList.contains('hidden')) { el.closePreviewModal.click(); return; } if (!el.produtoList.classList.contains('hidden')) { el.produtoList.classList.add('hidden'); return; } const formElements = Array.from(document.querySelectorAll('input, select, button')); const visibleElements = formElements.filter(elem => elem.offsetParent !== null && !elem.disabled && elem.type !== 'file' && !elem.classList.contains('remover-item') && !elem.classList.contains('remove-img-btn')); const currentIndex = visibleElements.indexOf(e.target); if (currentIndex > 0) { e.preventDefault(); visibleElements[currentIndex - 1].focus(); } } });
     document.addEventListener('paste', (e) => { const items = (e.clipboardData || e.originalEvent.clipboardData).items; const files = []; let hasImage = false; for (let index in items) { const item = items[index]; if (item.kind === 'file' && item.type.startsWith('image/')) { files.push(item.getAsFile()); hasImage = true; } } if (hasImage) { e.preventDefault(); processarArquivos(files); } });
     el.clienteNome.addEventListener('input', (e) => { const words = e.target.value.split(' '); const capitalizedWords = words.map(word => word.charAt(0).toUpperCase() + word.slice(1)); const newValue = capitalizedWords.join(' '); if (e.target.value !== newValue) { const start = e.target.selectionStart; const end = e.target.selectionEnd; e.target.value = newValue; e.target.setSelectionRange(start, end); } });
     el.produtoSearch.addEventListener('input', () => { const texto = el.produtoSearch.value; currentFocus = -1; atualizarListaProdutos(texto); if (estado.editandoItemId === null || estado.configItemAtual.produtoId === null) { estado.configItemAtual.produtoId = null; estado.configItemAtual.nomeProdutoPersonalizado = texto; if (texto.length > 0) { estado.configItemAtual.usarPrecoBasePersonalizado = true; el.precoBasePersonalizadoToggle.checked = true; el.precoBasePersonalizadoContainer.classList.remove('hidden'); } else { estado.configItemAtual.usarPrecoBasePersonalizado = false; el.precoBasePersonalizadoToggle.checked = false; el.precoBasePersonalizadoContainer.classList.add('hidden'); } } atualizarDisplayPrecoConfig(); });
-    document.addEventListener('click', (e) => { const target = e.target; if (!target.closest('.autocomplete') && !target.closest('.fab-container')) { el.produtoList.classList.add('hidden'); el.fabContainer.classList.remove('open'); } if (target.closest('.remover-item')) { const id = Number(target.closest('.remover-item').dataset.id); const tipo = target.closest('.remover-item').dataset.tipo; if (tipo === 'item') { estado.itensOrcamento = estado.itensOrcamento.filter(item => item.id !== id); recalcularTodosItens(); } else { const key = tipo === 'bordado' ? 'bordados' : `${tipo}Estampas`; estado.configItemAtual[key] = estado.configItemAtual[key].filter(e => e.id !== id); renderizarEstampas(tipo); } } if (target.closest('.editar-item')) { entrarModoEdicao(Number(target.closest('.editar-item').dataset.id)); } if (target.closest('.remove-img-btn')) { estado.configItemAtual.imagens.splice(Number(target.closest('.remove-img-btn').dataset.index), 1); renderizarImagens(); } });
+    
+    document.addEventListener('click', (e) => {
+        const target = e.target;
+        const actionBtn = target.closest('.item-action-btn');
+
+        if (!target.closest('.autocomplete') && !target.closest('.fab-container')) {
+            el.produtoList.classList.add('hidden');
+            el.fabContainer.classList.remove('open');
+        }
+
+        if (actionBtn) {
+            const id = Number(actionBtn.dataset.id);
+            if (actionBtn.classList.contains('remover-item')) {
+                const tipo = actionBtn.dataset.tipo;
+                if (tipo === 'item') {
+                    estado.itensOrcamento = estado.itensOrcamento.filter(item => item.id !== id);
+                    recalcularTodosItens();
+                }
+            } else if (actionBtn.classList.contains('editar-item')) {
+                entrarModoEdicao(id);
+            } else if (actionBtn.classList.contains('duplicar-item')) {
+                duplicarItem(id);
+            }
+        }
+        
+        if (target.closest('.remover-item') && !target.closest('.item-action-btn')) { 
+            const id = Number(target.closest('.remover-item').dataset.id);
+            const tipo = target.closest('.remover-item').dataset.tipo;
+            if (tipo !== 'item') {
+                 const key = tipo === 'bordado' ? 'bordados' : `${tipo}Estampas`; 
+                 estado.configItemAtual[key] = estado.configItemAtual[key].filter(e => e.id !== id); 
+                 renderizarEstampas(tipo);
+            }
+        }
+        
+        if (target.closest('.remove-img-btn')) {
+            estado.configItemAtual.imagens.splice(Number(target.closest('.remove-img-btn').dataset.index), 1);
+            renderizarImagens();
+        }
+    });
+
     el.fabMain.addEventListener('click', () => el.fabContainer.classList.toggle('open'));
     el.btnAdicionarEstampaDtf.addEventListener('click', () => { estado.configItemAtual.dtfEstampas.push({ id: Date.now(), tamanho: el.dtfTamanhoSelect.value }); renderizarEstampas('dtf'); });
     el.btnAdicionarEstampaSilk.addEventListener('click', () => { estado.configItemAtual.silkEstampas.push({ id: Date.now(), cores: Number(el.silkCoresSelect.value) }); renderizarEstampas('silk'); });
@@ -330,24 +402,52 @@ function setupEventListeners() {
     el.descontoGlobalToggle.addEventListener('change', (e) => { estado.usarDescontoGlobal = e.target.checked; recalcularTodosItens(); });
     el.btnGerarPdf.addEventListener('click', () => manipularPDF('download')); el.btnPreviewPdf.addEventListener('click', () => manipularPDF('preview')); el.closePreviewModal.addEventListener('click', () => { const currentUrl = el.pdfPreviewFrame.dataset.objectUrl; if (currentUrl) URL.revokeObjectURL(currentUrl); el.pdfPreviewFrame.src = 'about:blank'; el.pdfPreviewFrame.removeAttribute('data-object-url'); el.pdfPreviewModal.classList.add('hidden'); });
 }
-
-// ... (resto das funções auxiliares e de PDF)
 function addActive(items) { if (!items) return false; removeActive(items); if (currentFocus >= items.length) currentFocus = 0; if (currentFocus < 0) currentFocus = (items.length - 1); items[currentFocus].classList.add("autocomplete-active"); items[currentFocus].scrollIntoView({ block: 'nearest' }); }
 function removeActive(items) { for (let i = 0; i < items.length; i++) items[i].classList.remove("autocomplete-active"); }
 function atualizarListaProdutos(filtro = '') { el.produtoList.innerHTML = ''; const produtosFiltrados = produtos.filter(p => p.nome.toLowerCase().includes(filtro.toLowerCase())); if (filtro === '') { el.produtoList.classList.add('hidden'); return; } if (produtosFiltrados.length === 0) { const item = document.createElement('div'); item.textContent = `Usar como novo: "${filtro}"`; item.style.fontStyle = 'italic'; item.style.color = '#aaa'; item.addEventListener('click', () => el.produtoList.classList.add('hidden')); el.produtoList.appendChild(item); el.produtoList.classList.remove('hidden'); return; } produtosFiltrados.forEach(p => { const item = document.createElement('div'); item.textContent = p.nome; item.addEventListener('click', () => selecionarProduto(p)); el.produtoList.appendChild(item); }); el.produtoList.classList.remove('hidden'); }
 function selecionarProduto(produto) { estado.configItemAtual.produtoId = produto.id; estado.configItemAtual.nomeProdutoPersonalizado = ''; estado.configItemAtual.usarPrecoBasePersonalizado = false; el.produtoSearch.value = produto.nome; el.precoBasePersonalizadoToggle.checked = false; el.precoBasePersonalizadoContainer.classList.add('hidden'); el.produtoList.classList.add('hidden'); atualizarDisplayPrecoConfig(); }
 function processarArquivos(files) { if (files) { Array.from(files).forEach(file => { if (!file.type.startsWith('image/')) return; const reader = new FileReader(); reader.onload = (event) => { estado.configItemAtual.imagens.push(event.target.result); renderizarImagens(); }; reader.readAsDataURL(file); }); } }
 function getMetodoDesc(item) { const metodos = []; if (item.temSilk && item.silkEstampas.length > 0) { const contagem = item.silkEstampas.reduce((acc, e) => { const key = `${e.cores} Cores`; acc[key] = (acc[key] || 0) + 1; return acc; }, {}); metodos.push(`Silk (${Object.entries(contagem).map(([k, q]) => `${q}x ${k}`).join(', ')})`); } if (item.temDtf && item.dtfEstampas.length > 0) { const contagem = item.dtfEstampas.reduce((acc, e) => { acc[e.tamanho] = (acc[e.tamanho] || 0) + 1; return acc; }, {}); metodos.push(`DTF (${Object.entries(contagem).map(([k, q]) => `${q}x ${descricoesDTF[k] || k}`).join(', ')})`); } if (item.temBordado && item.bordados.length > 0) { const totalBordado = item.bordados.reduce((total, b) => total + b.preco, 0); metodos.push(`${item.bordados.length}x Bordado (${formatarMoeda(totalBordado)})`); } return metodos.length > 0 ? metodos.join(' + ') : "Sem Personalização"; }
-function desenharRodapePDF(doc, startY) { const pageHeight = doc.internal.pageSize.height; const margin = 14; if (startY > pageHeight - 90) { doc.addPage(); startY = margin; } doc.setFontSize(10).setFont(undefined, 'bold').text('Informações Adicionais', margin, startY); startY += 8; const col1X = margin, col2X = 108, colWidth = 88, lineHeight = 4.5, sectionSpacing = 7, titleFontSize = 9, textFontSize = 8; let y1 = startY, y2 = startY; const drawSection = (colX, initialY, title, content) => { let currentY = initialY; doc.setFontSize(titleFontSize).setFont(undefined, 'bold').text(title, colX, currentY); currentY += lineHeight + 1; doc.setFontSize(textFontSize).setFont(undefined, 'normal'); const textLines = doc.splitTextToSize(content, colWidth); doc.text(textLines, colX, currentY); return currentY + (textLines.length * lineHeight) + sectionSpacing; }; y1 = drawSection(col1X, y1, 'Serviços Inclusos', '• Mockup para divulgação\n• Ficha técnica detalhada\n• Acompanhamento de produção\n• Controle de qualidade peça por peça'); y1 = drawSection(col1X, y1, 'Pagamento', '• 50% entrada + 50% na finalização (PIX)\n• PIX à vista\n• Cartão em até 6x'); y1 = drawSection(col1X, y1, 'Frete', '• Calculado à parte, conforme região.'); y2 = drawSection(col2X, y2, 'Pedido Mínimo', '• DTF: 12 peças\n• Serigrafia: 30 peças\n• Bordado: 30 peças'); y2 = drawSection(col2X, y2, 'Prazo de Produção', '• Lisas: até 48h para despacho\n• DTF: até 15 dias úteis\n• Silk: até 20 dias úteis\n(após aprovação da ficha técnica)'); y2 = drawSection(col2X, y2, 'Regras de Personalização', '• Máx. 2 cores de peça por ref.\n• Grade de tamanho livre\n• +R$ 4,00 a partir do G3'); }
-async function criarDocumentoPDF() { if (!window.jspdf) { alert("Biblioteca PDF não carregada."); return null; } const { jsPDF } = window.jspdf; const doc = new jsPDF(); const cliente = el.clienteNome.value || "Cliente Não Identificado"; if (estado.logoBase64) { const imgProps = doc.getImageProperties(estado.logoBase64); const aspectRatio = imgProps.width / imgProps.height; doc.addImage(estado.logoBase64, 'PNG', 14, 12, 35, 35 / aspectRatio); } else { doc.setFontSize(22).text("BRUNX IND.", 14, 20); } doc.setFontSize(12).text("Orçamento Oficial", 14, 28).line(14, 32, 196, 32); doc.setFontSize(10).text(`Cliente: ${cliente}`, 14, 40).text(`Data: ${new Date().toLocaleDateString()}`, 160, 40); let finalY = 50; for (const item of estado.itensOrcamento) { if (finalY > 250) { doc.addPage(); finalY = 20; } const tableBody = [[getNomeProduto(item), item.quantidade, getMetodoDesc(item), formatarMoeda(item.precoUnit), formatarMoeda(item.precoTotal)]]; if (item.descricaoAdicional) { tableBody.push([{ content: `Obs: ${item.descricaoAdicional}`, colSpan: 5, styles: { fontStyle: 'italic', textColor: [100, 100, 100] } }]); } doc.autoTable({ startY: finalY, head: [['Produto', 'Qtd', 'Detalhes', 'Valor Unit.', 'Total']], body: tableBody, theme: 'grid', headStyles: { fillColor: [17, 17, 17] } }); finalY = doc.lastAutoTable.finalY + 5; if (item.imagens.length > 0) { if (finalY > 230) { doc.addPage(); finalY = 20; } doc.setFont(undefined, 'bold').text(item.tituloReferencia ? `Referências do Item: ${item.tituloReferencia}` : 'Referências do Item:', 14, finalY).setFont(undefined, 'normal'); finalY += 6; let currentX = 14; item.imagens.forEach(imgData => { if (currentX > 150) { currentX = 14; finalY += 45; } if (finalY > 250) { doc.addPage(); finalY = 20; } try { const imgProps = doc.getImageProperties(imgData); const aspectRatio = imgProps.width / imgProps.height; doc.addImage(imgData, 'JPEG', currentX, finalY, aspectRatio > 1 ? 40 : 40 * aspectRatio, aspectRatio > 1 ? 40 / aspectRatio : 40); } catch (err) { console.error("Erro ao adicionar imagem:", err); } currentX += 45; }); finalY += 45; } finalY += 5; } const totalGeral = estado.itensOrcamento.reduce((sum, item) => sum + item.precoTotal, 0); if (finalY > 260) { doc.addPage(); finalY = 20; } doc.line(14, finalY, 196, finalY); finalY += 10; doc.setFontSize(12).text('Total Geral do Orçamento:', 14, finalY); doc.setFontSize(14).setFont(undefined, 'bold').text(formatarMoeda(totalGeral), 196, finalY, { align: 'right' }); finalY += 15; if (el.infoAdicionaisToggle.checked) desenharRodapePDF(doc, finalY); return doc; }
+function desenharRodapePDF(doc, startY) {
+    const pageHeight = doc.internal.pageSize.height;
+    const margin = 14;
+    if (startY > pageHeight - 90) {
+        doc.addPage();
+        startY = margin;
+    }
+    doc.setFontSize(10).setFont(undefined, 'bold').text('Informações Adicionais', margin, startY);
+    startY += 8;
+    const col1X = margin, col2X = 108, colWidth = 88, lineHeight = 4.5, sectionSpacing = 7, titleFontSize = 9, textFontSize = 8;
+    let y = startY;
+
+    const drawSection = (colX, initialY, title, content) => {
+        let currentY = initialY;
+        doc.setFontSize(titleFontSize).setFont(undefined, 'bold').text(title, colX, currentY);
+        currentY += lineHeight + 1;
+        doc.setFontSize(textFontSize).setFont(undefined, 'normal');
+        const textLines = doc.splitTextToSize(content, colWidth);
+        doc.text(textLines, colX, currentY);
+        return currentY + (textLines.length * lineHeight) + sectionSpacing;
+    };
+
+    let y1 = drawSection(col1X, y, 'Serviços Inclusos', '• Mockup para divulgação\n• Ficha técnica detalhada\n• Acompanhamento de produção\n• Controle de qualidade peça por peça');
+    y1 = drawSection(col1X, y1, 'Pagamento', '• 50% entrada + 50% na finalização (PIX)\n• PIX à vista\n• Cartão em até 6x');
+    drawSection(col1X, y1, 'Frete', '• Calculado à parte, conforme região.');
+
+    let y2 = drawSection(col2X, y, 'Pedido Mínimo', '• DTF: 12 peças\n• Serigrafia: 30 peças\n• Bordado: 30 peças');
+    y2 = drawSection(col2X, y2, 'Prazo de Produção', '• Lisas: até 48h para despacho\n• DTF: até 15 dias úteis\n• Silk: até 20 dias úteis\n(após aprovação da ficha técnica)');
+    drawSection(col2X, y2, 'Regras de Personalização', '• Máx. 2 cores de peça por ref.\n• Grade de tamanho livre\n• +R$ 4,00 a partir do G3');
+}
+async function criarDocumentoPDF() { if (!window.jspdf) { alert("Biblioteca PDF não carregada."); return null; } const { jsPDF } = window.jspdf; const doc = new jsPDF(); const cliente = el.clienteNome.value || "Cliente Não Identificado"; if (estado.logoBase64) { const imgProps = doc.getImageProperties(estado.logoBase64); const aspectRatio = imgProps.width / imgProps.height; doc.addImage(estado.logoBase64, 'PNG', 14, 12, 35, 35 / aspectRatio); } else { doc.setFontSize(22).text("BRUNX IND.", 14, 20); } doc.setFontSize(12).text("Orçamento Oficial", 14, 28).line(14, 32, 196, 32); doc.setFontSize(10).text(`Cliente: ${cliente}`, 14, 40).text(`Data: ${new Date().toLocaleDateString()}`, 160, 40); let finalY = 50; for (const item of estado.itensOrcamento) { if (finalY > 250) { doc.addPage(); finalY = 20; } const tableBody = [[getNomeProduto(item), item.quantidade, getMetodoDesc(item), formatarMoeda(item.precoUnit), formatarMoeda(item.precoTotal)]]; if (item.descricaoAdicional) { tableBody.push([{ content: `Obs: ${item.descricaoAdicional}`, colSpan: 5, styles: { fontStyle: 'italic', textColor: [100, 100, 100] } }]); } doc.autoTable({ startY: finalY, head: [['Produto', 'Qtd', 'Detalhes', 'Valor Unit.', 'Total']], body: tableBody, theme: 'grid', headStyles: { fillColor: [17, 17, 17] } }); finalY = doc.lastAutoTable.finalY + 5; if (item.imagens.length > 0) { if (finalY > 230) { doc.addPage(); finalY = 20; } doc.setFont(undefined, 'bold').text(item.tituloReferencia ? `Referências do Item: ${item.tituloReferencia}` : 'Referências do Item:', 14, finalY).setFont(undefined, 'normal'); finalY += 6; let currentX = 14; item.imagens.forEach(imgData => { if (currentX > 150) { currentX = 14; finalY += 45; } if (finalY > 250) { doc.addPage(); finalY = 20; } try { const imgProps = doc.getImageProperties(imgData); const aspectRatio = imgProps.width / imgProps.height; doc.addImage(imgData, 'JPEG', currentX, finalY, aspectRatio > 1 ? 40 : 40 * aspectRatio, aspectRatio > 1 ? 40 / aspectRatio : 40); } catch (err) { console.error("Erro ao adicionar imagem:", err); } currentX += 45; }); finalY += 45; } finalY += 5; } const totalGeral = estado.itensOrcamento.reduce((sum, item) => sum + item.precoTotal, 0); if (finalY > 260) { doc.addPage(); finalY = 20; } doc.line(14, finalY, 196, finalY); finalY += 10; doc.setFontSize(12).text('Total Geral do Orçamento:', 14, finalY); doc.setFontSize(14).setFont(undefined, 'bold').text(formatarMoeda(totalGeral), 196, finalY, { align: 'right' }); finalY += 15; if (el.infoAdicionaisToggle.checked) await desenharRodapePDF(doc, finalY); return doc; }
 async function manipularPDF(action) { if (estado.itensOrcamento.length === 0) { alert("Adicione pelo menos um item ao orçamento antes de gerar o PDF."); return; } const doc = await criarDocumentoPDF(); if (!doc) return; if (action === 'preview') { const currentUrl = el.pdfPreviewFrame.dataset.objectUrl; if (currentUrl) URL.revokeObjectURL(currentUrl); const pdfBlob = doc.output('blob'); const pdfUrl = URL.createObjectURL(pdfBlob); el.pdfPreviewFrame.dataset.objectUrl = pdfUrl; el.pdfPreviewFrame.src = pdfUrl; el.pdfPreviewModal.classList.remove('hidden'); } else { doc.save(`Orcamento_Brunx_${el.clienteNome.value.replace(/[^a-z0-9]/gi, '_') || 'Cliente'}.pdf`); } }
 function carregarLogoLocal() { const img = new Image(); img.src = 'images/LogoBrunx.png'; img.onload = () => { const canvas = document.createElement('canvas'); canvas.width = img.width; canvas.height = img.height; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0); estado.logoBase64 = canvas.toDataURL('image/png'); }; img.onerror = () => console.error("Não foi possível carregar o logo. O PDF usará o texto padrão."); }
 
 // --- INICIALIZAÇÃO ---
 window.addEventListener('DOMContentLoaded', () => {
-    // Listener para o estado de autenticação do Firebase
-    auth.onAuthStateChanged(gerenciarEstadoAuth);
-
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    applyTheme(savedTheme);
+    
+    onAuthStateChanged(auth, gerenciarEstadoAuth);
     setupEventListeners();
     resetarConfigItem();
     carregarLogoLocal();

@@ -8,9 +8,22 @@
     --border-color: #333333;
     --border-strong-color: #ffffff;
     --border-radius: 12px;
-    --danger-color: #dc3545;
+    --danger-color: #e53e3e;
     --edit-color: #ffc107;
+    --success-color: #38a169;
+    --info-color: #3182ce;
     --font-sans-serif: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+body.light-theme {
+    --primary-color: #000000;
+    --secondary-color: #ffffff;
+    --bg-color: #f0f2f5;
+    --card-bg: #ffffff;
+    --text-color: #1a202c;
+    --text-muted: #718096;
+    --border-color: #e2e8f0;
+    --border-strong-color: #000000;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -21,6 +34,7 @@ body {
     color: var(--text-color);
     line-height: 1.6;
     padding-bottom: 120px;
+    transition: background-color 0.3s, color 0.3s;
 }
 
 .container { max-width: 850px; margin: 2rem auto; padding: 20px; }
@@ -29,9 +43,105 @@ header {
     text-align: center;
     margin-bottom: 2.5rem;
 }
-.logo { max-width: 180px; margin-bottom: 0.5rem; }
+.logo {
+    max-width: 180px;
+    margin: 0 auto 0.5rem auto;
+    display: block;
+}
 header p { color: var(--text-muted); font-size: 1.1rem; font-weight: 300; }
 .credits { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem; }
+
+.theme-toggle-container {
+    position: fixed;
+    bottom: 30px;
+    left: 30px;
+    z-index: 100;
+}
+
+.theme-toggle-btn {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.theme-toggle-btn:hover {
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+    transform: scale(1.1);
+}
+.theme-toggle-btn svg {
+    width: 22px;
+    height: 22px;
+}
+
+
+.auth-container {
+    margin-top: 1.5rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.user-info #userName {
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 0.6rem 1.2rem;
+    border-radius: var(--border-radius);
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+}
+
+.btn-login {
+    background-color: var(--secondary-color);
+    color: var(--primary-color);
+    border-color: var(--border-color);
+}
+
+.btn-login:hover {
+    border-color: var(--primary-color);
+}
+
+.google-icon {
+    width: 18px;
+    height: 18px;
+}
+
+.btn-logout {
+    background-color: transparent;
+    color: var(--text-muted);
+    border-color: var(--border-color);
+}
+
+.btn-logout:hover {
+    background-color: var(--border-color);
+    color: var(--primary-color);
+}
+
 
 .card {
     background: var(--card-bg);
@@ -40,6 +150,10 @@ header p { color: var(--text-muted); font-size: 1.1rem; font-weight: 300; }
     box-shadow: 0 8px 24px rgba(0,0,0,0.2);
     margin-bottom: 1.5rem;
     border: 1px solid var(--border-color);
+    transition: background-color 0.3s, border-color 0.3s;
+}
+body.light-theme .card {
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1);
 }
 
 .card-title {
@@ -68,12 +182,15 @@ input[type="text"], input[type="number"], select {
     font-size: 1rem;
     background-color: var(--bg-color);
     color: var(--text-color);
-    transition: border-color 0.2s, box-shadow 0.2s;
+    transition: border-color 0.2s, box-shadow 0.2s, background-color 0.3s, color 0.3s;
 }
 input:focus, select:focus {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(255,255,255,.1);
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, .5);
     outline: none;
+}
+body.light-theme input:focus, body.light-theme select:focus {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, .3);
 }
 
 /* Autocomplete */
@@ -102,10 +219,13 @@ input:focus, select:focus {
     transition: background-color 0.2s;
 }
 .autocomplete-items div:hover {
-    background-color: #333;
+    background-color: var(--bg-color);
 }
 .autocomplete-items div.autocomplete-active {
     background-color: #444;
+}
+body.light-theme .autocomplete-items div.autocomplete-active {
+    background-color: #e2e8f0;
 }
 .autocomplete-items div:last-child {
     border-bottom: none;
@@ -125,10 +245,11 @@ input:focus, select:focus {
     color: var(--primary-color);
     margin-top: 1rem;
     border: 1px solid var(--border-color);
+    transition: background-color 0.3s, color 0.3s, border-color 0.3s;
 }
 
 .hidden { display: none !important; }
-.divider { height: 1px; background: var(--border-color); margin: 2rem 0; }
+.divider { height: 1px; background: var(--border-color); margin: 2rem 0; transition: background-color 0.3s; }
 small { display: block; margin-top: 0.5rem; color: var(--text-muted); font-size: 0.875rem; }
 
 /* Checkbox Styling */
@@ -176,6 +297,9 @@ small { display: block; margin-top: 0.5rem; color: var(--text-muted); font-size:
 .personalizacao-container .checkbox-group:hover {
     background-color: #222;
 }
+body.light-theme .personalizacao-container .checkbox-group:hover {
+    background-color: #f7fafc;
+}
 .personalizacao-opcoes {
     padding: 1.5rem;
     margin-top: 0.5rem;
@@ -201,6 +325,7 @@ small { display: block; margin-top: 0.5rem; color: var(--text-muted); font-size:
 }
 .btn-add-item { background-color: var(--primary-color); color: var(--secondary-color); }
 .btn-add-item:hover { background-color: #ccc; border-color: #ccc; color: var(--secondary-color); }
+body.light-theme .btn-add-item:hover { background-color: #2d3748; border-color: #2d3748; color: white; }
 .btn-cancel { background-color: transparent; color: var(--primary-color); }
 .btn-cancel:hover { background-color: var(--border-color); }
 
@@ -225,6 +350,7 @@ small { display: block; margin-top: 0.5rem; color: var(--text-muted); font-size:
     transition: background-color 0.3s, border-color 0.3s;
 }
 .drop-zone.drag-over { background-color: #2a2a2a; border-color: var(--primary-color); }
+body.light-theme .drop-zone.drag-over { background-color: #edf2f7; }
 .file-input-label { color: var(--primary-color); font-weight: 600; text-decoration: underline; cursor: pointer; }
 
 .preview-area { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1rem; min-height: 80px; }
@@ -253,7 +379,7 @@ small { display: block; margin-top: 0.5rem; color: var(--text-muted); font-size:
 .remove-img-btn:hover { transform: scale(1.1); }
 
 /* Listas */
-#itensContainer .empty-state, .estampas-list .empty-state-small { color: var(--text-muted); text-align: center; padding: 2rem 0; }
+#itensContainer .empty-state, .estampas-list .empty-state-small, #listaOrcamentos .empty-state { color: var(--text-muted); text-align: center; padding: 2rem 0; }
 .estampas-list .empty-state-small { padding: 1rem 0; font-size: 0.9rem; }
 
 /* Espaçamento para a lista de estampas */
@@ -264,7 +390,7 @@ small { display: block; margin-top: 0.5rem; color: var(--text-muted); font-size:
     gap: 0.75rem; /* Adicionado gap */
 }
 
-.item-adicionado, .estampa-adicionada {
+.item-adicionado, .estampa-adicionada, .orcamento-salvo-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -275,23 +401,60 @@ small { display: block; margin-top: 0.5rem; color: var(--text-muted); font-size:
     gap: 1rem;
 }
 .estampa-adicionada { padding: 0.5rem 1rem; background-color: var(--bg-color); margin-bottom: 0; /* Remove margin-bottom individual pois usamos gap no container */ }
-.item-adicionado .info, .estampa-adicionada .info { flex-grow: 1; }
-.item-adicionado .info strong { display: block; font-size: 1.05rem; font-weight: 600; color: var(--primary-color); }
-.item-adicionado .info span { font-size: 0.9rem; color: var(--text-muted); }
+.item-adicionado .info, .estampa-adicionada .info, .orcamento-salvo-item .info { flex-grow: 1; }
+.item-adicionado .info strong, .orcamento-salvo-item .info strong { display: block; font-size: 1.05rem; font-weight: 600; color: var(--primary-color); }
+.item-adicionado .info span, .orcamento-salvo-item .info span { font-size: 0.9rem; color: var(--text-muted); }
 .estampa-adicionada .info { font-weight: 500; }
 
 .item-adicionado .preco { text-align: right; }
 .item-adicionado .preco strong { font-size: 1.1rem; font-weight: 600; color: var(--primary-color); }
 
-.item-actions { display: flex; gap: 0.5rem; }
-.item-actions button {
-    background: transparent; border: 2px solid var(--border-color); cursor: pointer; font-size: 1rem;
-    width: 40px; height: 40px; border-radius: 50%; line-height: 36px;
-    text-align: center; color: var(--primary-color); transition: all 0.2s;
+.item-actions, .orcamento-salvo-item .actions { display: flex; gap: 0.75rem; }
+
+.item-action-btn, .btn-orcamento-action {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    transition: all 0.2s;
 }
-.item-actions button:hover { transform: scale(1.1); background: var(--primary-color); color: var(--secondary-color); border-color: var(--primary-color); }
-.remover-item { background-color: var(--danger-color); border-color: var(--danger-color); color: var(--secondary-color); }
-.editar-item { background-color: var(--edit-color); border-color: var(--edit-color); color: var(--primary-color); }
+
+.item-action-btn:hover, .btn-orcamento-action:hover {
+    transform: scale(1.1);
+}
+
+.item-action-btn.remover-item:hover, .btn-deletar-orcamento:hover {
+    background-color: var(--danger-color);
+    color: white;
+}
+
+.item-action-btn.editar-item:hover {
+    background-color: var(--edit-color);
+    color: var(--secondary-color);
+}
+
+.item-action-btn.duplicar-item:hover {
+    background-color: var(--info-color);
+    color: white;
+}
+
+.btn-carregar-orcamento:hover {
+    background-color: var(--success-color);
+    color: white;
+}
+
+.item-action-btn svg, .btn-orcamento-action svg {
+    width: 18px;
+    height: 18px;
+}
+
 
 /* FAB (Floating Action Button) */
 .fab-container {
