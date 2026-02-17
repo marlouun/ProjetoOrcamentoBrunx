@@ -144,6 +144,10 @@
                     </div>
                     <button id="btnAdicionarBordado" class="btn-add-estampa">Adicionar</button>
                 </div>
+                <div class="form-group checkbox-group" style="margin-top: 10px;">
+                    <input type="checkbox" id="bordadoOcultarPreco">
+                    <label for="bordadoOcultarPreco">Ocultar preço no PDF</label>
+                </div>
                 <div id="bordadoList" class="estampas-list"></div>
             </div>
         </div>
@@ -198,6 +202,22 @@
         <div class="form-group checkbox-group global-setting-toggle">
             <input type="checkbox" id="descontoGlobalToggle">
             <label for="descontoGlobalToggle"><strong>Aplicar Desconto pela Quantidade TOTAL do Pedido</strong></label>
+        </div>
+
+        <div id="descontoContainer" class="global-setting-toggle">
+            <div class="row">
+                <div class="form-group">
+                    <label for="descontoTipo">Tipo de Desconto</label>
+                    <select id="descontoTipo">
+                        <option value="percent">% (Porcentagem)</option>
+                        <option value="fixed">R$ (Valor Fixo)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="descontoValor">Valor do Desconto</label>
+                    <input type="number" id="descontoValor" placeholder="0" step="0.01">
+                </div>
+            </div>
         </div>
 
         <div class="form-group checkbox-group global-setting-toggle" style="margin-bottom: 25px;">
