@@ -431,7 +431,7 @@ function desenharRodapePDF(doc, startY) {
     };
 
     let y1 = drawSection(col1X, y, 'Serviços Inclusos', '• Mockup para divulgação\n• Ficha técnica detalhada\n• Acompanhamento de produção\n• Controle de qualidade peça por peça');
-    y1 = drawSection(col1X, y1, 'Pagamento', '• 50% entrada + 50% na finalização (PIX)\n• PIX à vista\n• Cartão em até 6x');
+    y1 = drawSection(col1X, y1, 'Pagamento', '• 50% entrada + 50% na finalização (PIX)\n• PIX à vista\n• Cartão em até 3x sem juros');
     drawSection(col1X, y1, 'Frete', '• Calculado à parte, conforme região.');
 
     let y2 = drawSection(col2X, y, 'Pedido Mínimo', '• DTF: 12 peças\n• Serigrafia: 30 peças\n• Bordado: 30 peças');
