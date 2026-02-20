@@ -40,6 +40,8 @@ let estado = {
     editandoItemId: null,
     logoBase64: null,
     usarDescontoGlobal: false,
+    descontoTipo: 'percent',
+    descontoValor: 0,
     currentUser: null,
 };
 let currentFocus = -1;
@@ -79,6 +81,7 @@ const el = {
     dtfList: document.getElementById('dtfList'),
     opcoesBordado: document.getElementById('opcoesBordado'),
     bordadoPreco: document.getElementById('bordadoPreco'),
+    bordadoOcultarPreco: document.getElementById('bordadoOcultarPreco'),
     btnAdicionarBordado: document.getElementById('btnAdicionarBordado'),
     bordadoList: document.getElementById('bordadoList'),
     dropZone: document.getElementById('dropZone'),
@@ -105,6 +108,9 @@ const el = {
     btnPreviewPdf: document.getElementById('btnPreviewPdf'),
     btnGerarPdf: document.getElementById('btnGerarPdf'),
     descontoGlobalToggle: document.getElementById('descontoGlobalToggle'),
+    descontoContainer: document.getElementById('descontoContainer'),
+    descontoTipo: document.getElementById('descontoTipo'),
+    descontoValor: document.getElementById('descontoValor'),
     infoAdicionaisToggle: document.getElementById('infoAdicionaisToggle'),
 };
 
@@ -271,7 +277,7 @@ function getNomeProduto(item) { if (item.produtoId !== null) { const produto = p
 function calcularPrecoItem(item, quantidadeTotalOverride = null) { const quantidade = parseInt(item.quantidade) || 0; const precoManual = parseFloat(item.precoManual) || 0; const precoBasePersonalizado = parseFloat(item.precoBasePersonalizado) || 0; const valorAdicional = parseFloat(item.valorAdicional) || 0; const quantidadeParaCalculo = quantidadeTotalOverride !== null ? quantidadeTotalOverride : quantidade; if (item.manual) { const precoUnit = precoManual; return { precoUnit, precoTotal: precoUnit * quantidade }; } let precoBase = 0; if (item.usarPrecoBasePersonalizado) { precoBase = precoBasePersonalizado; } else { const produto = produtos.find(p => p.id === item.produtoId); if (produto) { if (quantidadeParaCalculo >= 150 && produto.p150 > 0) precoBase = produto.p150; else if (quantidadeParaCalculo >= 50 && produto.p50 > 0) precoBase = produto.p50; else precoBase = produto.p12; } } let custoEstampa = 0; if (item.temSilk) { custoEstampa += item.silkEstampas.reduce((total, estampa) => total + calcularSilk(quantidadeParaCalculo, estampa.cores), 0); } if (item.temDtf) { custoEstampa += item.dtfEstampas.reduce((total, estampa) => total + (precosDTF[estampa.tamanho] || 0), 0); } if (item.temBordado) { custoEstampa += item.bordados.reduce((total, bordado) => total + bordado.preco, 0); } const precoUnit = precoBase + custoEstampa + valorAdicional; return { precoUnit, precoTotal: precoUnit * quantidade }; }
 function recalcularTodosItens() { const totalPecas = estado.itensOrcamento.reduce((sum, item) => sum + (parseInt(item.quantidade) || 0), 0); const qtdParaCalculo = estado.usarDescontoGlobal ? totalPecas : null; estado.itensOrcamento = estado.itensOrcamento.map(item => { const { precoUnit, precoTotal } = calcularPrecoItem(item, qtdParaCalculo); return { ...item, precoUnit, precoTotal }; }); renderizarItensOrcamento(); }
 function atualizarDisplayPrecoConfig() { const { precoUnit } = calcularPrecoItem(estado.configItemAtual); el.precoPecaDisplay.innerText = `Preço Unit. do Item Configurado: ${formatarMoeda(precoUnit)}`; }
-function renderizarEstampas(tipo) { const key = tipo === 'bordado' ? 'bordados' : `${tipo}Estampas`; const listaEl = el[`${tipo}List`]; const estampas = estado.configItemAtual[key]; if (!listaEl) return; listaEl.innerHTML = ''; if (estampas.length === 0) { listaEl.innerHTML = `<p class="empty-state-small">Nenhum(a) ${tipo} adicionado(a).</p>`; } else { estampas.forEach(estampa => { let desc; if (tipo === 'silk') { desc = `${estampa.cores} Cores`; } else if (tipo === 'dtf') { desc = descricoesDTF[estampa.tamanho] || estampa.tamanho; } else { desc = formatarMoeda(estampa.preco); } const div = document.createElement('div'); div.className = 'estampa-adicionada'; div.innerHTML = ` <span class="info">1x ${tipo === 'bordado' ? 'Bordado' : 'Estampa'} ${desc}</span> <button class="remover-item" data-id="${estampa.id}" data-tipo="${tipo}">✖️</button> `; listaEl.appendChild(div); }); } atualizarDisplayPrecoConfig(); }
+function renderizarEstampas(tipo) { const key = tipo === 'bordado' ? 'bordados' : `${tipo}Estampas`; const listaEl = el[`${tipo}List`]; const estampas = estado.configItemAtual[key]; if (!listaEl) return; listaEl.innerHTML = ''; if (estampas.length === 0) { listaEl.innerHTML = `<p class="empty-state-small">Nenhum(a) ${tipo} adicionado(a).</p>`; } else { estampas.forEach(estampa => { let desc; if (tipo === 'silk') { desc = `${estampa.cores} Cores`; } else if (tipo === 'dtf') { desc = descricoesDTF[estampa.tamanho] || estampa.tamanho; } else { desc = estampa.ocultarPreco ? '' : formatarMoeda(estampa.preco); } const div = document.createElement('div'); div.className = 'estampa-adicionada'; div.innerHTML = ` <span class="info">1x Bordado ${desc}</span> <button class="remover-item" data-id="${estampa.id}" data-tipo="${tipo}">✖️</button> `; listaEl.appendChild(div); }); } atualizarDisplayPrecoConfig(); }
 function renderizarImagens() { el.previewArea.innerHTML = ''; estado.configItemAtual.imagens.forEach((imgData, index) => { const container = document.createElement('div'); container.className = 'preview-img-container'; container.innerHTML = ` <img src="${imgData}" class="preview-img" alt="Preview da imagem ${index + 1}"> <button class="remove-img-btn" data-index="${index}">✖</button> `; el.previewArea.appendChild(container); }); }
 function renderizarItensOrcamento() {
     el.itensContainer.innerHTML = '';
@@ -307,7 +313,19 @@ function renderizarItensOrcamento() {
     }
     atualizarResumoTotal();
 }
-function atualizarResumoTotal() { const total = estado.itensOrcamento.reduce((sum, item) => sum + item.precoTotal, 0); el.totalPedido.textContent = formatarMoeda(total); }
+function atualizarResumoTotal() {
+    const subtotal = estado.itensOrcamento.reduce((sum, item) => sum + item.precoTotal, 0);
+    let desconto = 0;
+    if (estado.descontoValor > 0) {
+        if (estado.descontoTipo === 'percent') {
+            desconto = subtotal * (estado.descontoValor / 100);
+        } else {
+            desconto = estado.descontoValor;
+        }
+    }
+    const totalFinal = subtotal - desconto;
+    el.totalPedido.textContent = formatarMoeda(totalFinal);
+}
 function preencherFormularioComItem(item) { estado.configItemAtual = JSON.parse(JSON.stringify(item)); if (item.produtoId !== null) { const produto = produtos.find(p => p.id === item.produtoId); el.produtoSearch.value = produto ? produto.nome : ''; } else { el.produtoSearch.value = item.nomeProdutoPersonalizado || ''; } el.quantidade.value = item.quantidade; el.silkToggle.checked = item.temSilk; el.dtfToggle.checked = item.temDtf; el.bordadoToggle.checked = item.temBordado; el.valorAdicional.value = item.valorAdicional || ''; el.precoManual.value = item.precoManual || ''; el.precoBasePersonalizado.value = item.precoBasePersonalizado || ''; el.tituloReferencia.value = item.tituloReferencia || ''; el.modoManualToggle.checked = item.manual; el.descricaoAdicional.value = item.descricaoAdicional; el.precoBasePersonalizadoToggle.checked = item.usarPrecoBasePersonalizado; el.opcoesSilk.classList.toggle('hidden', !item.temSilk); el.opcoesDtf.classList.toggle('hidden', !item.temDtf); el.opcoesBordado.classList.toggle('hidden', !item.temBordado); const manualOuAdicional = item.manual || item.valorAdicional > 0; el.descricaoAdicionalContainer.classList.toggle('hidden', !manualOuAdicional); el.areaCalculoAutomatico.classList.toggle('hidden', item.manual); el.areaCalculoManual.classList.toggle('hidden', !item.manual); el.precoBasePersonalizadoContainer.classList.toggle('hidden', !item.usarPrecoBasePersonalizado); renderizarEstampas('silk'); renderizarEstampas('dtf'); renderizarEstampas('bordado'); renderizarImagens(); atualizarDisplayPrecoConfig(); }
 function entrarModoEdicao(itemId) { const itemParaEditar = estado.itensOrcamento.find(item => item.id === itemId); if (!itemParaEditar) return; estado.editandoItemId = itemId; preencherFormularioComItem(itemParaEditar); el.configFormTitle.textContent = "2. Editando Item"; el.btnAdicionarItem.textContent = "Salvar Alterações"; el.btnCancelarEdicao.classList.remove('hidden'); window.scrollTo(0, el.configFormTitle.offsetTop); }
 function sairModoEdicao() { estado.editandoItemId = null; resetarConfigItem(); el.configFormTitle.textContent = "2. Configurar e Adicionar Item"; el.btnAdicionarItem.textContent = "Adicionar Item ao Orçamento"; el.btnCancelarEdicao.classList.add('hidden'); }
@@ -393,13 +411,15 @@ function setupEventListeners() {
     el.fabMain.addEventListener('click', () => el.fabContainer.classList.toggle('open'));
     el.btnAdicionarEstampaDtf.addEventListener('click', () => { estado.configItemAtual.dtfEstampas.push({ id: Date.now(), tamanho: el.dtfTamanhoSelect.value }); renderizarEstampas('dtf'); });
     el.btnAdicionarEstampaSilk.addEventListener('click', () => { estado.configItemAtual.silkEstampas.push({ id: Date.now(), cores: Number(el.silkCoresSelect.value) }); renderizarEstampas('silk'); });
-    el.btnAdicionarBordado.addEventListener('click', () => { const preco = parseFloat(el.bordadoPreco.value) || 0; if (preco > 0) { estado.configItemAtual.bordados.push({ id: Date.now(), preco: preco }); renderizarEstampas('bordado'); el.bordadoPreco.value = ''; } });
+    el.btnAdicionarBordado.addEventListener('click', () => { const preco = parseFloat(el.bordadoPreco.value) || 0; if (preco > 0) { const ocultarPreco = el.bordadoOcultarPreco.checked; estado.configItemAtual.bordados.push({ id: Date.now(), preco: preco, ocultarPreco: ocultarPreco }); renderizarEstampas('bordado'); el.bordadoPreco.value = ''; } });
     el.btnAdicionarItem.addEventListener('click', () => { if (estado.editandoItemId !== null) { salvarItemEditado(); } else { if (estado.configItemAtual.produtoId === null) { if (!estado.configItemAtual.nomeProdutoPersonalizado || !estado.configItemAtual.usarPrecoBasePersonalizado) { alert("Por favor, selecione um produto da lista ou digite um nome e defina um preço base personalizado."); return; } if (estado.configItemAtual.precoBasePersonalizado <= 0 && !estado.configItemAtual.manual) { alert("Para produtos personalizados, informe o Preço Base da Peça."); return; } } const itemParaAdicionar = JSON.parse(JSON.stringify(estado.configItemAtual)); itemParaAdicionar.id = Date.now(); estado.itensOrcamento.push(itemParaAdicionar); recalcularTodosItens(); resetarConfigItem(); } });
     el.btnCancelarEdicao.addEventListener('click', sairModoEdicao);
     const dropZone = el.dropZone; dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); }); dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over')); dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('drag-over'); if (e.dataTransfer.files) processarArquivos(e.dataTransfer.files); }); el.uploadImagens.addEventListener('change', (e) => processarArquivos(e.target.files));
     const propMap = { 'quantidade': 'quantidade', 'valorAdicional': 'valorAdicional', 'precoManual': 'precoManual', 'modoManualToggle': 'manual', 'descricaoAdicional': 'descricaoAdicional', 'precoBasePersonalizadoToggle': 'usarPrecoBasePersonalizado', 'precoBasePersonalizado': 'precoBasePersonalizado', 'bordadoPreco': 'bordadoPreco', 'silkToggle': 'temSilk', 'dtfToggle': 'temDtf', 'bordadoToggle': 'temBordado', 'tituloReferencia': 'tituloReferencia' };
-    Object.keys(propMap).forEach(key => { const element = el[key]; const prop = propMap[key]; const eventType = element.type === 'checkbox' ? 'change' : 'input'; element.addEventListener(eventType, (e) => { let value = element.type === 'checkbox' ? e.target.checked : (element.type === 'number' ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value); estado.configItemAtual[prop] = value; if (key === 'silkToggle') { el.opcoesSilk.classList.toggle('hidden', !value); if (value && estado.configItemAtual.quantidade < 30) { estado.configItemAtual.quantidade = 30; el.quantidade.value = 30; } } if (key === 'dtfToggle') el.opcoesDtf.classList.toggle('hidden', !value); if (key === 'bordadoToggle') el.opcoesBordado.classList.toggle('hidden', !value); if (key === 'modoManualToggle' || key === 'valorAdicional') { el.descricaoAdicionalContainer.classList.toggle('hidden', !(estado.configItemAtual.manual || (Number(estado.configItemAtual.valorAdicional) > 0))); } if (key === 'modoManualToggle') { el.areaCalculoAutomatico.classList.toggle('hidden', value); el.areaCalculoManual.classList.toggle('hidden', !value); } if (key === 'precoBasePersonalizadoToggle') { el.precoBasePersonalizadoContainer.classList.toggle('hidden', !value); } atualizarDisplayPrecoConfig(); }); });
+    Object.keys(propMap).forEach(key => { const element = el[key]; const prop = propMap[key]; const eventType = element.type === 'checkbox' ? 'change' : 'input'; element.addEventListener(eventType, (e) => { let value = element.type === 'checkbox' ? e.target.checked : (element.type === 'number' ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value); estado.configItemAtual[prop] = value; if (key === 'silkToggle') { el.opcoesSilk.classList.toggle('hidden', !value); } if (key === 'dtfToggle') { el.opcoesDtf.classList.toggle('hidden', !value); } if (key === 'bordadoToggle') { el.opcoesBordado.classList.toggle('hidden', !value); } if (key === 'modoManualToggle' || key === 'valorAdicional') { el.descricaoAdicionalContainer.classList.toggle('hidden', !(estado.configItemAtual.manual || (Number(estado.configItemAtual.valorAdicional) > 0))); } if (key === 'modoManualToggle') { el.areaCalculoAutomatico.classList.toggle('hidden', value); el.areaCalculoManual.classList.toggle('hidden', !value); } if (key === 'precoBasePersonalizadoToggle') { el.precoBasePersonalizadoContainer.classList.toggle('hidden', !value); } atualizarDisplayPrecoConfig(); }); });
     el.descontoGlobalToggle.addEventListener('change', (e) => { estado.usarDescontoGlobal = e.target.checked; recalcularTodosItens(); });
+    el.descontoTipo.addEventListener('change', (e) => { estado.descontoTipo = e.target.value; atualizarResumoTotal(); });
+    el.descontoValor.addEventListener('input', (e) => { estado.descontoValor = parseFloat(e.target.value) || 0; atualizarResumoTotal(); });
     el.btnGerarPdf.addEventListener('click', () => manipularPDF('download')); el.btnPreviewPdf.addEventListener('click', () => manipularPDF('preview')); el.closePreviewModal.addEventListener('click', () => { const currentUrl = el.pdfPreviewFrame.dataset.objectUrl; if (currentUrl) URL.revokeObjectURL(currentUrl); el.pdfPreviewFrame.src = 'about:blank'; el.pdfPreviewFrame.removeAttribute('data-object-url'); el.pdfPreviewModal.classList.add('hidden'); });
 }
 function addActive(items) { if (!items) return false; removeActive(items); if (currentFocus >= items.length) currentFocus = 0; if (currentFocus < 0) currentFocus = (items.length - 1); items[currentFocus].classList.add("autocomplete-active"); items[currentFocus].scrollIntoView({ block: 'nearest' }); }
@@ -407,7 +427,22 @@ function removeActive(items) { for (let i = 0; i < items.length; i++) items[i].c
 function atualizarListaProdutos(filtro = '') { el.produtoList.innerHTML = ''; const produtosFiltrados = produtos.filter(p => p.nome.toLowerCase().includes(filtro.toLowerCase())); if (filtro === '') { el.produtoList.classList.add('hidden'); return; } if (produtosFiltrados.length === 0) { const item = document.createElement('div'); item.textContent = `Usar como novo: "${filtro}"`; item.style.fontStyle = 'italic'; item.style.color = '#aaa'; item.addEventListener('click', () => el.produtoList.classList.add('hidden')); el.produtoList.appendChild(item); el.produtoList.classList.remove('hidden'); return; } produtosFiltrados.forEach(p => { const item = document.createElement('div'); item.textContent = p.nome; item.addEventListener('click', () => selecionarProduto(p)); el.produtoList.appendChild(item); }); el.produtoList.classList.remove('hidden'); }
 function selecionarProduto(produto) { estado.configItemAtual.produtoId = produto.id; estado.configItemAtual.nomeProdutoPersonalizado = ''; estado.configItemAtual.usarPrecoBasePersonalizado = false; el.produtoSearch.value = produto.nome; el.precoBasePersonalizadoToggle.checked = false; el.precoBasePersonalizadoContainer.classList.add('hidden'); el.produtoList.classList.add('hidden'); atualizarDisplayPrecoConfig(); }
 function processarArquivos(files) { if (files) { Array.from(files).forEach(file => { if (!file.type.startsWith('image/')) return; const reader = new FileReader(); reader.onload = (event) => { estado.configItemAtual.imagens.push(event.target.result); renderizarImagens(); }; reader.readAsDataURL(file); }); } }
-function getMetodoDesc(item) { const metodos = []; if (item.temSilk && item.silkEstampas.length > 0) { const contagem = item.silkEstampas.reduce((acc, e) => { const key = `${e.cores} Cores`; acc[key] = (acc[key] || 0) + 1; return acc; }, {}); metodos.push(`Silk (${Object.entries(contagem).map(([k, q]) => `${q}x ${k}`).join(', ')})`); } if (item.temDtf && item.dtfEstampas.length > 0) { const contagem = item.dtfEstampas.reduce((acc, e) => { acc[e.tamanho] = (acc[e.tamanho] || 0) + 1; return acc; }, {}); metodos.push(`DTF (${Object.entries(contagem).map(([k, q]) => `${q}x ${descricoesDTF[k] || k}`).join(', ')})`); } if (item.temBordado && item.bordados.length > 0) { const totalBordado = item.bordados.reduce((total, b) => total + b.preco, 0); metodos.push(`${item.bordados.length}x Bordado (${formatarMoeda(totalBordado)})`); } return metodos.length > 0 ? metodos.join(' + ') : "Sem Personalização"; }
+function getMetodoDesc(item) {
+    const metodos = [];
+    if (item.temSilk && item.silkEstampas.length > 0) {
+        const contagem = item.silkEstampas.reduce((acc, e) => { const key = `${e.cores} Cores`; acc[key] = (acc[key] || 0) + 1; return acc; }, {});
+        metodos.push(`Silk (${Object.entries(contagem).map(([k, q]) => `${q}x ${k}`).join(', ')})`);
+    }
+    if (item.temDtf && item.dtfEstampas.length > 0) {
+        const contagem = item.dtfEstampas.reduce((acc, e) => { acc[e.tamanho] = (acc[e.tamanho] || 0) + 1; return acc; }, {});
+        metodos.push(`DTF (${Object.entries(contagem).map(([k, q]) => `${q}x ${descricoesDTF[k] || k}`).join(', ')})`);
+    }
+    if (item.temBordado && item.bordados.length > 0) {
+        const descBordados = item.bordados.map(b => `1x Bordado${b.ocultarPreco ? '' : ` (${formatarMoeda(b.preco)})`}`).join(', ');
+        metodos.push(descBordados);
+    }
+    return metodos.length > 0 ? metodos.join(' + ') : "Sem Personalização";
+}
 function desenharRodapePDF(doc, startY) {
     const pageHeight = doc.internal.pageSize.height;
     const margin = 14;
@@ -431,14 +466,88 @@ function desenharRodapePDF(doc, startY) {
     };
 
     let y1 = drawSection(col1X, y, 'Serviços Inclusos', '• Mockup para divulgação\n• Ficha técnica detalhada\n• Acompanhamento de produção\n• Controle de qualidade peça por peça');
-    y1 = drawSection(col1X, y1, 'Pagamento', '• 50% entrada + 50% na finalização (PIX)\n• PIX à vista\n• Cartão em até 3x sem juros');
+    y1 = drawSection(col1X, y1, 'Pagamento', '• 50% entrada + 50% na finalização (PIX)\n• PIX à vista\n• Cartão em até 6x');
     drawSection(col1X, y1, 'Frete', '• Calculado à parte, conforme região.');
 
     let y2 = drawSection(col2X, y, 'Pedido Mínimo', '• DTF: 12 peças\n• Serigrafia: 30 peças\n• Bordado: 30 peças');
     y2 = drawSection(col2X, y2, 'Prazo de Produção', '• Lisas: até 48h para despacho\n• DTF: até 15 dias úteis\n• Silk: até 20 dias úteis\n(após aprovação da ficha técnica)');
     drawSection(col2X, y2, 'Regras de Personalização', '• Máx. 2 cores de peça por ref.\n• Grade de tamanho livre\n• +R$ 4,00 a partir do G2');
 }
-async function criarDocumentoPDF() { if (!window.jspdf) { alert("Biblioteca PDF não carregada."); return null; } const { jsPDF } = window.jspdf; const doc = new jsPDF(); const cliente = el.clienteNome.value || "Cliente Não Identificado"; if (estado.logoBase64) { const imgProps = doc.getImageProperties(estado.logoBase64); const aspectRatio = imgProps.width / imgProps.height; doc.addImage(estado.logoBase64, 'PNG', 14, 12, 35, 35 / aspectRatio); } else { doc.setFontSize(22).text("BRUNX IND.", 14, 20); } doc.setFontSize(12).text("Orçamento Oficial", 14, 28).line(14, 32, 196, 32); doc.setFontSize(10).text(`Cliente: ${cliente}`, 14, 40).text(`Data: ${new Date().toLocaleDateString()}`, 160, 40); let finalY = 50; for (const item of estado.itensOrcamento) { if (finalY > 250) { doc.addPage(); finalY = 20; } const tableBody = [[getNomeProduto(item), item.quantidade, getMetodoDesc(item), formatarMoeda(item.precoUnit), formatarMoeda(item.precoTotal)]]; if (item.descricaoAdicional) { tableBody.push([{ content: `Obs: ${item.descricaoAdicional}`, colSpan: 5, styles: { fontStyle: 'italic', textColor: [100, 100, 100] } }]); } doc.autoTable({ startY: finalY, head: [['Produto', 'Qtd', 'Detalhes', 'Valor Unit.', 'Total']], body: tableBody, theme: 'grid', headStyles: { fillColor: [17, 17, 17] } }); finalY = doc.lastAutoTable.finalY + 5; if (item.imagens.length > 0) { if (finalY > 230) { doc.addPage(); finalY = 20; } doc.setFont(undefined, 'bold').text(item.tituloReferencia ? `Referências do Item: ${item.tituloReferencia}` : 'Referências do Item:', 14, finalY).setFont(undefined, 'normal'); finalY += 6; let currentX = 14; item.imagens.forEach(imgData => { if (currentX > 150) { currentX = 14; finalY += 45; } if (finalY > 250) { doc.addPage(); finalY = 20; } try { const imgProps = doc.getImageProperties(imgData); const aspectRatio = imgProps.width / imgProps.height; doc.addImage(imgData, 'JPEG', currentX, finalY, aspectRatio > 1 ? 40 : 40 * aspectRatio, aspectRatio > 1 ? 40 / aspectRatio : 40); } catch (err) { console.error("Erro ao adicionar imagem:", err); } currentX += 45; }); finalY += 45; } finalY += 5; } const totalGeral = estado.itensOrcamento.reduce((sum, item) => sum + item.precoTotal, 0); if (finalY > 260) { doc.addPage(); finalY = 20; } doc.line(14, finalY, 196, finalY); finalY += 10; doc.setFontSize(12).text('Total Geral do Orçamento:', 14, finalY); doc.setFontSize(14).setFont(undefined, 'bold').text(formatarMoeda(totalGeral), 196, finalY, { align: 'right' }); finalY += 15; if (el.infoAdicionaisToggle.checked) await desenharRodapePDF(doc, finalY); return doc; }
+async function criarDocumentoPDF() {
+    if (!window.jspdf) { alert("Biblioteca PDF não carregada."); return null; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const cliente = el.clienteNome.value || "Cliente Não Identificado";
+    if (estado.logoBase64) {
+        const imgProps = doc.getImageProperties(estado.logoBase64);
+        const aspectRatio = imgProps.width / imgProps.height;
+        doc.addImage(estado.logoBase64, 'PNG', 14, 12, 35, 35 / aspectRatio);
+    } else {
+        doc.setFontSize(22).text("BRUNX IND.", 14, 20);
+    }
+    doc.setFontSize(12).text("Orçamento Oficial", 14, 28).line(14, 32, 196, 32);
+    doc.setFontSize(10).text(`Cliente: ${cliente}`, 14, 40).text(`Data: ${new Date().toLocaleDateString()}`, 160, 40);
+    let finalY = 50;
+    for (const item of estado.itensOrcamento) {
+        if (finalY > 250) { doc.addPage(); finalY = 20; }
+        const tableBody = [[getNomeProduto(item), item.quantidade, getMetodoDesc(item), formatarMoeda(item.precoUnit), formatarMoeda(item.precoTotal)]];
+        if (item.descricaoAdicional) {
+            tableBody.push([{ content: `Obs: ${item.descricaoAdicional}`, colSpan: 5, styles: { fontStyle: 'italic', textColor: [100, 100, 100] } }]);
+        }
+        doc.autoTable({ startY: finalY, head: [['Produto', 'Qtd', 'Detalhes', 'Valor Unit.', 'Total']], body: tableBody, theme: 'grid', headStyles: { fillColor: [17, 17, 17] } });
+        finalY = doc.lastAutoTable.finalY + 5;
+        if (item.imagens.length > 0) {
+            if (finalY > 230) { doc.addPage(); finalY = 20; }
+            doc.setFont(undefined, 'bold').text(item.tituloReferencia ? `Referências do Item: ${item.tituloReferencia}` : 'Referências do Item:', 14, finalY).setFont(undefined, 'normal');
+            finalY += 6;
+            let currentX = 14;
+            item.imagens.forEach(imgData => {
+                if (currentX > 150) { currentX = 14; finalY += 45; }
+                if (finalY > 250) { doc.addPage(); finalY = 20; }
+                try {
+                    const imgProps = doc.getImageProperties(imgData);
+                    const aspectRatio = imgProps.width / imgProps.height;
+                    doc.addImage(imgData, 'JPEG', currentX, finalY, aspectRatio > 1 ? 40 : 40 * aspectRatio, aspectRatio > 1 ? 40 / aspectRatio : 40);
+                } catch (err) { console.error("Erro ao adicionar imagem:", err); }
+                currentX += 45;
+            });
+            finalY += 45;
+        }
+        finalY += 5;
+    }
+    const subtotal = estado.itensOrcamento.reduce((sum, item) => sum + item.precoTotal, 0);
+    let desconto = 0;
+    if (estado.descontoValor > 0) {
+        if (estado.descontoTipo === 'percent') {
+            desconto = subtotal * (estado.descontoValor / 100);
+        } else {
+            desconto = estado.descontoValor;
+        }
+    }
+    const totalFinal = subtotal - desconto;
+
+    if (finalY > 260) { doc.addPage(); finalY = 20; }
+    doc.line(14, finalY, 196, finalY);
+    finalY += 8;
+
+    doc.setFontSize(12).text('Subtotal:', 14, finalY);
+    doc.setFontSize(12).setFont(undefined, 'normal').text(formatarMoeda(subtotal), 196, finalY, { align: 'right' });
+    finalY += 7;
+
+    if (desconto > 0) {
+        const descLabel = estado.descontoTipo === 'percent' ? `Desconto (${estado.descontoValor}%):` : 'Desconto (R$):';
+        doc.setFontSize(12).text(descLabel, 14, finalY);
+        doc.setFontSize(12).setFont(undefined, 'normal').text(`- ${formatarMoeda(desconto)}`, 196, finalY, { align: 'right' });
+        finalY += 7;
+    }
+
+    doc.setFontSize(14).setFont(undefined, 'bold').text('Total Geral:', 14, finalY);
+    doc.setFontSize(14).setFont(undefined, 'bold').text(formatarMoeda(totalFinal), 196, finalY, { align: 'right' });
+    finalY += 15;
+
+    if (el.infoAdicionaisToggle.checked) await desenharRodapePDF(doc, finalY);
+    return doc;
+}
 async function manipularPDF(action) { if (estado.itensOrcamento.length === 0) { alert("Adicione pelo menos um item ao orçamento antes de gerar o PDF."); return; } const doc = await criarDocumentoPDF(); if (!doc) return; if (action === 'preview') { const currentUrl = el.pdfPreviewFrame.dataset.objectUrl; if (currentUrl) URL.revokeObjectURL(currentUrl); const pdfBlob = doc.output('blob'); const pdfUrl = URL.createObjectURL(pdfBlob); el.pdfPreviewFrame.dataset.objectUrl = pdfUrl; el.pdfPreviewFrame.src = pdfUrl; el.pdfPreviewModal.classList.remove('hidden'); } else { doc.save(`Orcamento_Brunx_${el.clienteNome.value.replace(/[^a-z0-9]/gi, '_') || 'Cliente'}.pdf`); } }
 function carregarLogoLocal() { const img = new Image(); img.src = 'images/LogoBrunx.png'; img.onload = () => { const canvas = document.createElement('canvas'); canvas.width = img.width; canvas.height = img.height; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0); estado.logoBase64 = canvas.toDataURL('image/png'); }; img.onerror = () => console.error("Não foi possível carregar o logo. O PDF usará o texto padrão."); }
 
