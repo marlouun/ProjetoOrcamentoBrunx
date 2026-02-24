@@ -277,7 +277,36 @@ function getNomeProduto(item) { if (item.produtoId !== null) { const produto = p
 function calcularPrecoItem(item, quantidadeTotalOverride = null) { const quantidade = parseInt(item.quantidade) || 0; const precoManual = parseFloat(item.precoManual) || 0; const precoBasePersonalizado = parseFloat(item.precoBasePersonalizado) || 0; const valorAdicional = parseFloat(item.valorAdicional) || 0; const quantidadeParaCalculo = quantidadeTotalOverride !== null ? quantidadeTotalOverride : quantidade; if (item.manual) { const precoUnit = precoManual; return { precoUnit, precoTotal: precoUnit * quantidade }; } let precoBase = 0; if (item.usarPrecoBasePersonalizado) { precoBase = precoBasePersonalizado; } else { const produto = produtos.find(p => p.id === item.produtoId); if (produto) { if (quantidadeParaCalculo >= 150 && produto.p150 > 0) precoBase = produto.p150; else if (quantidadeParaCalculo >= 50 && produto.p50 > 0) precoBase = produto.p50; else precoBase = produto.p12; } } let custoEstampa = 0; if (item.temSilk) { custoEstampa += item.silkEstampas.reduce((total, estampa) => total + calcularSilk(quantidadeParaCalculo, estampa.cores), 0); } if (item.temDtf) { custoEstampa += item.dtfEstampas.reduce((total, estampa) => total + (precosDTF[estampa.tamanho] || 0), 0); } if (item.temBordado) { custoEstampa += item.bordados.reduce((total, bordado) => total + bordado.preco, 0); } const precoUnit = precoBase + custoEstampa + valorAdicional; return { precoUnit, precoTotal: precoUnit * quantidade }; }
 function recalcularTodosItens() { const totalPecas = estado.itensOrcamento.reduce((sum, item) => sum + (parseInt(item.quantidade) || 0), 0); const qtdParaCalculo = estado.usarDescontoGlobal ? totalPecas : null; estado.itensOrcamento = estado.itensOrcamento.map(item => { const { precoUnit, precoTotal } = calcularPrecoItem(item, qtdParaCalculo); return { ...item, precoUnit, precoTotal }; }); renderizarItensOrcamento(); }
 function atualizarDisplayPrecoConfig() { const { precoUnit } = calcularPrecoItem(estado.configItemAtual); el.precoPecaDisplay.innerText = `Preço Unit. do Item Configurado: ${formatarMoeda(precoUnit)}`; }
-function renderizarEstampas(tipo) { const key = tipo === 'bordado' ? 'bordados' : `${tipo}Estampas`; const listaEl = el[`${tipo}List`]; const estampas = estado.configItemAtual[key]; if (!listaEl) return; listaEl.innerHTML = ''; if (estampas.length === 0) { listaEl.innerHTML = `<p class="empty-state-small">Nenhum(a) ${tipo} adicionado(a).</p>`; } else { estampas.forEach(estampa => { let desc; if (tipo === 'silk') { desc = `${estampa.cores} Cores`; } else if (tipo === 'dtf') { desc = descricoesDTF[estampa.tamanho] || estampa.tamanho; } else { desc = estampa.ocultarPreco ? '' : formatarMoeda(estampa.preco); } const div = document.createElement('div'); div.className = 'estampa-adicionada'; div.innerHTML = ` <span class="info">1x Bordado ${desc}</span> <button class="remover-item" data-id="${estampa.id}" data-tipo="${tipo}">✖️</button> `; listaEl.appendChild(div); }); } atualizarDisplayPrecoConfig(); }
+function renderizarEstampas(tipo) {
+    const key = tipo === 'bordado' ? 'bordados' : `${tipo}Estampas`;
+    const listaEl = el[`${tipo}List`];
+    const estampas = estado.configItemAtual[key];
+    if (!listaEl) return;
+    listaEl.innerHTML = '';
+    if (estampas.length === 0) {
+        listaEl.innerHTML = `<p class="empty-state-small">Nenhum(a) ${tipo} adicionado(a).</p>`;
+    } else {
+        estampas.forEach(estampa => {
+            let desc;
+            let nomeEstampa;
+            if (tipo === 'silk') {
+                desc = `${estampa.cores} Cores`;
+                nomeEstampa = 'Estampa Silk';
+            } else if (tipo === 'dtf') {
+                desc = descricoesDTF[estampa.tamanho] || estampa.tamanho;
+                nomeEstampa = 'Estampa DTF';
+            } else {
+                desc = estampa.ocultarPreco ? '' : formatarMoeda(estampa.preco);
+                nomeEstampa = 'Bordado';
+            }
+            const div = document.createElement('div');
+            div.className = 'estampa-adicionada';
+            div.innerHTML = ` <span class="info">1x ${nomeEstampa} ${desc}</span> <button class="remover-item" data-id="${estampa.id}" data-tipo="${tipo}">✖️</button> `;
+            listaEl.appendChild(div);
+        });
+    }
+    atualizarDisplayPrecoConfig();
+}
 function renderizarImagens() { el.previewArea.innerHTML = ''; estado.configItemAtual.imagens.forEach((imgData, index) => { const container = document.createElement('div'); container.className = 'preview-img-container'; container.innerHTML = ` <img src="${imgData}" class="preview-img" alt="Preview da imagem ${index + 1}"> <button class="remove-img-btn" data-index="${index}">✖</button> `; el.previewArea.appendChild(container); }); }
 function renderizarItensOrcamento() {
     el.itensContainer.innerHTML = '';
