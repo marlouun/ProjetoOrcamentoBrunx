@@ -467,8 +467,7 @@ function getMetodoDesc(item) {
         metodos.push(`DTF (${Object.entries(contagem).map(([k, q]) => `${q}x ${descricoesDTF[k] || k}`).join(', ')})`);
     }
     if (item.temBordado && item.bordados.length > 0) {
-        const descBordados = item.bordados.map(b => `1x Bordado${b.ocultarPreco ? '' : ` (${formatarMoeda(b.preco)})`}`).join(', ');
-        metodos.push(descBordados);
+        metodos.push(`${item.bordados.length}x Bordado`);
     }
     return metodos.length > 0 ? metodos.join(' + ') : "Sem Personalização";
 }
