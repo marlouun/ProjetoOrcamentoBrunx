@@ -81,7 +81,6 @@ const el = {
     dtfList: document.getElementById('dtfList'),
     opcoesBordado: document.getElementById('opcoesBordado'),
     bordadoPreco: document.getElementById('bordadoPreco'),
-    bordadoOcultarPreco: document.getElementById('bordadoOcultarPreco'),
     btnAdicionarBordado: document.getElementById('btnAdicionarBordado'),
     bordadoList: document.getElementById('bordadoList'),
     dropZone: document.getElementById('dropZone'),
@@ -296,7 +295,7 @@ function renderizarEstampas(tipo) {
                 desc = descricoesDTF[estampa.tamanho] || estampa.tamanho;
                 nomeEstampa = 'Estampa DTF';
             } else {
-                desc = estampa.ocultarPreco ? '' : formatarMoeda(estampa.preco);
+                desc = formatarMoeda(estampa.preco);
                 nomeEstampa = 'Bordado';
             }
             const div = document.createElement('div');
@@ -327,7 +326,7 @@ function renderizarItensOrcamento() {
                 </div>
                 <div class="item-actions">
                     <button class="item-action-btn duplicar-item" data-id="${item.id}" title="Duplicar Item">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                     </button>
                     <button class="item-action-btn editar-item" data-id="${item.id}" title="Editar Item">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
@@ -440,7 +439,7 @@ function setupEventListeners() {
     el.fabMain.addEventListener('click', () => el.fabContainer.classList.toggle('open'));
     el.btnAdicionarEstampaDtf.addEventListener('click', () => { estado.configItemAtual.dtfEstampas.push({ id: Date.now(), tamanho: el.dtfTamanhoSelect.value }); renderizarEstampas('dtf'); });
     el.btnAdicionarEstampaSilk.addEventListener('click', () => { estado.configItemAtual.silkEstampas.push({ id: Date.now(), cores: Number(el.silkCoresSelect.value) }); renderizarEstampas('silk'); });
-    el.btnAdicionarBordado.addEventListener('click', () => { const preco = parseFloat(el.bordadoPreco.value) || 0; if (preco > 0) { const ocultarPreco = el.bordadoOcultarPreco.checked; estado.configItemAtual.bordados.push({ id: Date.now(), preco: preco, ocultarPreco: ocultarPreco }); renderizarEstampas('bordado'); el.bordadoPreco.value = ''; } });
+    el.btnAdicionarBordado.addEventListener('click', () => { const preco = parseFloat(el.bordadoPreco.value) || 0; if (preco > 0) { estado.configItemAtual.bordados.push({ id: Date.now(), preco: preco }); renderizarEstampas('bordado'); el.bordadoPreco.value = ''; } });
     el.btnAdicionarItem.addEventListener('click', () => { if (estado.editandoItemId !== null) { salvarItemEditado(); } else { if (estado.configItemAtual.produtoId === null) { if (!estado.configItemAtual.nomeProdutoPersonalizado || !estado.configItemAtual.usarPrecoBasePersonalizado) { alert("Por favor, selecione um produto da lista ou digite um nome e defina um preço base personalizado."); return; } if (estado.configItemAtual.precoBasePersonalizado <= 0 && !estado.configItemAtual.manual) { alert("Para produtos personalizados, informe o Preço Base da Peça."); return; } } const itemParaAdicionar = JSON.parse(JSON.stringify(estado.configItemAtual)); itemParaAdicionar.id = Date.now(); estado.itensOrcamento.push(itemParaAdicionar); recalcularTodosItens(); resetarConfigItem(); } });
     el.btnCancelarEdicao.addEventListener('click', sairModoEdicao);
     const dropZone = el.dropZone; dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); }); dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over')); dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('drag-over'); if (e.dataTransfer.files) processarArquivos(e.dataTransfer.files); }); el.uploadImagens.addEventListener('change', (e) => processarArquivos(e.target.files));
