@@ -326,7 +326,7 @@ function renderizarItensOrcamento() {
                 </div>
                 <div class="item-actions">
                     <button class="item-action-btn duplicar-item" data-id="${item.id}" title="Duplicar Item">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                     </button>
                     <button class="item-action-btn editar-item" data-id="${item.id}" title="Editar Item">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
@@ -343,6 +343,7 @@ function renderizarItensOrcamento() {
 }
 function atualizarResumoTotal() {
     const subtotal = estado.itensOrcamento.reduce((sum, item) => sum + item.precoTotal, 0);
+    const totalPecas = estado.itensOrcamento.reduce((sum, item) => sum + (parseInt(item.quantidade) || 0), 0);
     let desconto = 0;
     if (estado.descontoValor > 0) {
         if (estado.descontoTipo === 'percent') {
@@ -352,7 +353,12 @@ function atualizarResumoTotal() {
         }
     }
     const totalFinal = subtotal - desconto;
-    el.totalPedido.textContent = formatarMoeda(totalFinal);
+
+    if (totalPecas > 0) {
+        el.totalPedido.innerHTML = `<span style="font-size: 0.7em; display: block;">${totalPecas} peças</span>${formatarMoeda(totalFinal)}`;
+    } else {
+        el.totalPedido.textContent = formatarMoeda(totalFinal);
+    }
 }
 function preencherFormularioComItem(item) { estado.configItemAtual = JSON.parse(JSON.stringify(item)); if (item.produtoId !== null) { const produto = produtos.find(p => p.id === item.produtoId); el.produtoSearch.value = produto ? produto.nome : ''; } else { el.produtoSearch.value = item.nomeProdutoPersonalizado || ''; } el.quantidade.value = item.quantidade; el.silkToggle.checked = item.temSilk; el.dtfToggle.checked = item.temDtf; el.bordadoToggle.checked = item.temBordado; el.valorAdicional.value = item.valorAdicional || ''; el.precoManual.value = item.precoManual || ''; el.precoBasePersonalizado.value = item.precoBasePersonalizado || ''; el.tituloReferencia.value = item.tituloReferencia || ''; el.modoManualToggle.checked = item.manual; el.descricaoAdicional.value = item.descricaoAdicional; el.precoBasePersonalizadoToggle.checked = item.usarPrecoBasePersonalizado; el.opcoesSilk.classList.toggle('hidden', !item.temSilk); el.opcoesDtf.classList.toggle('hidden', !item.temDtf); el.opcoesBordado.classList.toggle('hidden', !item.temBordado); const manualOuAdicional = item.manual || item.valorAdicional > 0; el.descricaoAdicionalContainer.classList.toggle('hidden', !manualOuAdicional); el.areaCalculoAutomatico.classList.toggle('hidden', item.manual); el.areaCalculoManual.classList.toggle('hidden', !item.manual); el.precoBasePersonalizadoContainer.classList.toggle('hidden', !item.usarPrecoBasePersonalizado); renderizarEstampas('silk'); renderizarEstampas('dtf'); renderizarEstampas('bordado'); renderizarImagens(); atualizarDisplayPrecoConfig(); }
 function entrarModoEdicao(itemId) { const itemParaEditar = estado.itensOrcamento.find(item => item.id === itemId); if (!itemParaEditar) return; estado.editandoItemId = itemId; preencherFormularioComItem(itemParaEditar); el.configFormTitle.textContent = "2. Editando Item"; el.btnAdicionarItem.textContent = "Salvar Alterações"; el.btnCancelarEdicao.classList.remove('hidden'); window.scrollTo(0, el.configFormTitle.offsetTop); }
@@ -543,6 +549,7 @@ async function criarDocumentoPDF() {
         finalY += 5;
     }
     const subtotal = estado.itensOrcamento.reduce((sum, item) => sum + item.precoTotal, 0);
+    const totalPecas = estado.itensOrcamento.reduce((sum, item) => sum + (parseInt(item.quantidade) || 0), 0);
     let desconto = 0;
     if (estado.descontoValor > 0) {
         if (estado.descontoTipo === 'percent') {
@@ -556,6 +563,12 @@ async function criarDocumentoPDF() {
     if (finalY > 260) { doc.addPage(); finalY = 20; }
     doc.line(14, finalY, 196, finalY);
     finalY += 8;
+
+    if (totalPecas > 0) {
+        doc.setFontSize(12).text('Quantidade Total:', 14, finalY);
+        doc.setFontSize(12).setFont(undefined, 'normal').text(`${totalPecas} peças`, 196, finalY, { align: 'right' });
+        finalY += 7;
+    }
 
     doc.setFontSize(12).text('Subtotal:', 14, finalY);
     doc.setFontSize(12).setFont(undefined, 'normal').text(formatarMoeda(subtotal), 196, finalY, { align: 'right' });
