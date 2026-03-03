@@ -200,6 +200,22 @@
             <label for="descontoGlobalToggle"><strong>Aplicar Desconto pela Quantidade TOTAL do Pedido</strong></label>
         </div>
 
+        <div id="descontoContainer" class="global-setting-toggle">
+            <div class="row">
+                <div class="form-group">
+                    <label for="descontoTipo">Tipo de Desconto</label>
+                    <select id="descontoTipo">
+                        <option value="percent">% (Porcentagem)</option>
+                        <option value="fixed">R$ (Valor Fixo)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="descontoValor">Valor do Desconto</label>
+                    <input type="number" id="descontoValor" placeholder="0" step="0.01">
+                </div>
+            </div>
+        </div>
+
         <div class="form-group checkbox-group global-setting-toggle" style="margin-bottom: 25px;">
             <input type="checkbox" id="infoAdicionaisToggle" checked>
             <label for="infoAdicionaisToggle"><strong>Incluir Informações Adicionais no PDF</strong></label>
