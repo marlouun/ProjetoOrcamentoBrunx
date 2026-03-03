@@ -2,13 +2,14 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs, query, where, orderBy, limit, serverTimestamp, doc, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+import { getStorage, ref, uploadString, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-storage.js";
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
 const firebaseConfig = {
     apiKey: "AIzaSyBNBO69CsNxSFQaWNp0BivjcZ8B0Eb-ihA",
     authDomain: "orcamento-brunx.firebaseapp.com",
     projectId: "orcamento-brunx",
-    storageBucket: "orcamento-brunx.appspot.com",
+    storageBucket: "orcamento-brunx.firebasestorage.app",
     messagingSenderId: "986116498061",
     appId: "1:986116498061:web:424faffd52362772af78c4",
     measurementId: "G-7S88K3YT1H"
@@ -18,6 +19,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const storage = getStorage(app);
 const provider = new GoogleAuthProvider();
 
 // --- CONFIGURAÇÃO DA PLANILHA ---
@@ -171,20 +173,47 @@ async function salvarOrcamentoNoFirestore() {
     const nomeCliente = el.clienteNome.value.trim();
     if (!nomeCliente) return alert("Por favor, insira um nome para o cliente/orçamento antes de salvar.");
 
-    const orcamentoParaSalvar = {
-        clienteNome: nomeCliente,
-        itens: estado.itensOrcamento.map(item => ({ ...item, imagens: [] })),
-        criadoEm: serverTimestamp(),
-        userId: estado.currentUser.uid
-    };
+    const originalButtonContent = el.btnSalvarOrcamento.innerHTML;
+    el.btnSalvarOrcamento.disabled = true;
+    el.btnSalvarOrcamento.textContent = 'Salvando...';
 
     try {
+        const itensComUrlDeImagem = await Promise.all(
+            estado.itensOrcamento.map(async (item) => {
+                const urlsImagens = await Promise.all(
+                    item.imagens.map(async (imgData) => {
+                        // Only upload new base64 images
+                        if (imgData.startsWith('data:image')) {
+                            const storageRef = ref(storage, `orcamentos/${estado.currentUser.uid}/${Date.now()}-${Math.random().toString(36).substring(2, 9)}.jpg`);
+                            const uploadTask = await uploadString(storageRef, imgData, 'data_url');
+                            return await getDownloadURL(uploadTask.ref);
+                        }
+                        // Keep existing URLs
+                        return imgData;
+                    })
+                );
+                return { ...item, imagens: urlsImagens };
+            })
+        );
+
+        const orcamentoParaSalvar = {
+            clienteNome: nomeCliente,
+            itens: itensComUrlDeImagem,
+            criadoEm: serverTimestamp(),
+            userId: estado.currentUser.uid,
+            usarDescontoGlobal: estado.usarDescontoGlobal, // Save this state as well
+        };
+
         await addDoc(collection(db, 'orcamentos'), orcamentoParaSalvar);
         alert(`Orçamento para "${nomeCliente}" salvo com sucesso!`);
         await carregarOrcamentosDoFirestore();
+
     } catch (error) {
         console.error("Erro ao salvar orçamento:", error);
-        alert("Ocorreu um erro ao salvar. Tente novamente.");
+        alert("Ocorreu um erro ao salvar as imagens e o orçamento. Tente novamente.");
+    } finally {
+        el.btnSalvarOrcamento.disabled = false;
+        el.btnSalvarOrcamento.innerHTML = originalButtonContent;
     }
 }
 
@@ -240,6 +269,9 @@ async function carregarOrcamentoEspecifico(orcamentoId) {
 
         el.clienteNome.value = orcamento.clienteNome;
         estado.itensOrcamento = orcamento.itens;
+        estado.usarDescontoGlobal = orcamento.usarDescontoGlobal || false;
+        el.descontoGlobalToggle.checked = estado.usarDescontoGlobal;
+
         recalcularTodosItens();
         sairModoEdicao();
         alert(`Orçamento para "${orcamento.clienteNome}" carregado.`);
