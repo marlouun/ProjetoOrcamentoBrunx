@@ -538,6 +538,26 @@ function desenharRodapePDF(doc, startY) {
     y2 = drawSection(col2X, y2, 'Prazo de Produção', '• Lisas: até 48h para despacho\n• DTF: até 15 dias úteis\n• Silk: até 20 dias úteis\n(após aprovação da ficha técnica)');
     drawSection(col2X, y2, 'Regras de Personalização', '• Máx. 2 cores de peça por ref.\n• Grade de tamanho livre\n• +R$ 4,00 a partir do G2');
 }
+
+// Função auxiliar para converter URL de imagem para Base64
+async function urlParaBase64(url) {
+    try {
+        // Usar um proxy para evitar problemas de CORS, se necessário.
+        // Ex: 'https://cors-anywhere.herokuapp.com/' + url
+        const response = await fetch(url);
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    } catch (error) {
+        console.error('Erro ao converter URL para Base64:', error);
+        return null; // Retorna nulo se a conversão falhar
+    }
+}
+
 async function criarDocumentoPDF() {
     if (!window.jspdf) { alert("Biblioteca PDF não carregada."); return null; }
     const { jsPDF } = window.jspdf;
@@ -566,14 +586,24 @@ async function criarDocumentoPDF() {
             doc.setFont(undefined, 'bold').text(item.tituloReferencia ? `Referências do Item: ${item.tituloReferencia}` : 'Referências do Item:', 14, finalY).setFont(undefined, 'normal');
             finalY += 6;
             let currentX = 14;
-            item.imagens.forEach(imgData => {
+
+            const imagensBase64 = await Promise.all(
+                item.imagens.map(imgData => {
+                    if (typeof imgData === 'string' && imgData.startsWith('http')) {
+                        return urlParaBase64(imgData);
+                    }
+                    return Promise.resolve(imgData); // Já é Base64
+                })
+            );
+
+            imagensBase64.filter(imgData => imgData).forEach(imgData => {
                 if (currentX > 150) { currentX = 14; finalY += 45; }
                 if (finalY > 250) { doc.addPage(); finalY = 20; }
                 try {
                     const imgProps = doc.getImageProperties(imgData);
                     const aspectRatio = imgProps.width / imgProps.height;
                     doc.addImage(imgData, 'JPEG', currentX, finalY, aspectRatio > 1 ? 40 : 40 * aspectRatio, aspectRatio > 1 ? 40 / aspectRatio : 40);
-                } catch (err) { console.error("Erro ao adicionar imagem:", err); }
+                } catch (err) { console.error("Erro ao adicionar imagem ao PDF:", err); }
                 currentX += 45;
             });
             finalY += 45;
